@@ -137,6 +137,15 @@ export default function AuthGate({ onAuthed }: Props) {
             ))}
           </div>
 
+          {/* индикатор режима хранилища */}
+          <div className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-[10.5px] font-bold ${
+            isSupa ? "border-teal/40 bg-teal/[0.07] text-teal" : "border-line bg-panel/60 text-dim"}`}>
+            {isSupa ? <CheckCircle2 size={13} className="shrink-0" /> : <Lock size={12} className="shrink-0" />}
+            {isSupa
+              ? "Облачная БД подключена · данные синхронизируются (Supabase)"
+              : "Локальный режим · данные хранятся в этом браузере"}
+          </div>
+
           <div className="rounded-2xl border border-line bg-panel/85 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.4)] backdrop-blur">
             <div className="mb-4">
               <div className="font-display text-[17px] font-bold text-fog">
