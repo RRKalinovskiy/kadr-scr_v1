@@ -21,6 +21,7 @@ npm run build   # сборка → dist/ (один самодостаточны�
 
 | Платформа      | Файл                    | Что делать                                        |
 | -------------- | ----------------------- | ------------------------------------------------- |
+| **reg.ru / FTP** | `.github/workflows/deploy-regru.yml` | Секреты FTP в GitHub → push → загрузка по FTP |
 | **Netlify**    | `netlify.toml`          | Import an existing project → выбрать репозиторий   |
 | **Vercel**     | `vercel.json`           | Add New → Project → импорт репозитория             |
 | **GitHub Pages** | `.github/workflows/deploy.yml` | Settings → Pages → Source: «GitHub Actions» |
