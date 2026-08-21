@@ -542,8 +542,10 @@ export default function CollectionPanel(props: {
                             <SortableContext items={normalNodes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
                               {normalNodes.map((n) => (n.kind === "request" ? <RequestRow key={n.id} node={n} /> : <FolderRow key={n.id} node={n} />))}
                             </SortableContext>
-                            {normalNodes.length === 0 && <div className="rounded-md border border-dashed border-line2/60 px-2 py-2 text-[10.5px] font-semibold leading-relaxed text-dim">Пока пусто. Добавьте запрос или папку.</div>}
-                            {trashFolder && <TrashFolderRow node={trashFolder} />}
+                            {normalNodes.length === 0 && !trashFolder?.children.length && (
+                              <div className="rounded-md border border-dashed border-line2/60 px-2 py-2 text-[10.5px] font-semibold leading-relaxed text-dim">Пока пусто. Добавьте запрос или папку.</div>
+                            )}
+                            {trashFolder && trashFolder.children.length > 0 && <TrashFolderRow node={trashFolder} />}
                             <div className="flex gap-1 pt-1" onContextMenu={(e) => e.stopPropagation()}>
                               <button onClick={() => onAddRequest(focusedFolder)}
                                 title={focusedFolder ? `Добавить в «${nodeById(tree, focusedFolder)?.name}»` : "Добавить в корень набора"}
