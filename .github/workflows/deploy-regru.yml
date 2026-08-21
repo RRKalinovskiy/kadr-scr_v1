@@ -67,7 +67,11 @@ jobs:
       # Загрузка собранного сайта на reg.ru по FTP.
       # local-dir  — что загружаем (папка dist со сборкой);
       # server-dir — куда на хостинге (папка сайта).
-      - name: Upload to reg.ru via FTP
+      # dangerous-clean-slate: полностью очищает папку сайта перед загрузкой,
+      #   чтобы на сервере не оставались исходники (/src/) и старые ассеты —
+      #   именно они вызывали ошибку "module script MIME type".
+      #   Безопасно, т.к. весь сайт — это один файл dist/index.html.
+      - name: Upload to reg.ru via FTP (с очисткой папки)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -75,3 +79,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
           server-dir: ${{ secrets.FTP_TARGET_DIR }}
+          dangerous-clean-slate: true
