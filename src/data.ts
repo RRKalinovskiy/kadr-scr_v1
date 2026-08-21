@@ -206,3 +206,59 @@ export function loadState(): PersistedState {
 export function saveState(s: PersistedState) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* квота — молча */ }
 }
+
+/* ---------- per-account хранение (привязка тестов к аккаунту) ---------- */
+
+import { db } from "./backend/db";
+import { isSupabase, supabaseBackend } from "./backend/supabase";
+
+/** Сид-состояние для нового рабочего места */
+function seedState(): PersistedState {
+  const collections = seedCollections().map((c) => ({ ...c, tree: ensureTrash(c.tree) }));
+  return { collections, activeId: collections[0]?.id ?? "", buildNo: 13, cookieStore: {}, account: ACCOUNT, tagColors: {} };
+}
+
+function normalize(p: PersistedState): PersistedState {
+  return {
+    ...p,
+    collections: (p.collections ?? []).map((c, i) =>
+      reconcileLinks({
+        ...c,
+        color: c.color || PALETTE[i % PALETTE.length],
+        screenUrl: c.screenUrl || c.baseUrl,
+        auth: c.auth && (["none", "cookie", "login", "key"] as const).includes(c.auth) ? c.auth : "none",
+        tree: ensureTrash(Array.isArray(c.tree) ? c.tree : []),
+        tests: c.tests.map((t) =>
+          t.status === "running" || t.status === "queued" ? { ...t, status: "idle", startedAt: undefined } : t,
+        ),
+      }),
+    ),
+    cookieStore: p.cookieStore && typeof p.cookieStore === "object" ? p.cookieStore : {},
+    account: p.account ?? ACCOUNT,
+    tagColors: p.tagColors && typeof p.tagColors === "object" ? p.tagColors : {},
+  };
+}
+
+/**
+ * Загружает состояние рабочего места аккаунта (синхронно).
+ * В Supabase-режиме приложение предварительно кеширует облачное состояние в
+ * localStorage (см. App), поэтому здесь всегда работает быстрый локальный путь.
+ */
+export function loadStateFor(accountId: string): PersistedState {
+  try {
+    const cached = db.loadAccountState<PersistedState>(accountId);
+    if (cached && Array.isArray(cached.collections) && cached.collections.length) {
+      return normalize(cached);
+    }
+  } catch { /* повреждённые данные — пересеиваем */ }
+  const fresh = seedState();
+  db.saveAccountState(accountId, fresh);
+  return fresh;
+}
+
+/** Сохраняет состояние аккаунта: локально + (в Supabase-режиме) в облако. */
+export function saveStateFor(accountId: string, s: PersistedState) {
+  db.saveAccountState(accountId, s);
+  if (isSupabase()) void supabaseBackend.saveState(accountId, s);
+}
+
