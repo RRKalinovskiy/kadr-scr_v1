@@ -262,7 +262,7 @@ function StandsPanel({ cols, statuses, auths, updatedAt, onCheckUrl, onRefresh, 
     return <Shield size={12} className="shrink-0 text-line2" />;
   };
   return (
-    <div className="mt-3 overflow-hidden rounded-xl border border-line bg-raised/40">
+    <div className="overflow-hidden rounded-xl border border-line bg-raised/40">
       <div className="flex items-center gap-1.5 border-b border-line/70 px-2.5 py-2">
         <Server size={12} className="shrink-0 text-teal" />
         <span className="text-[9.5px] font-extrabold uppercase tracking-[0.13em] text-mist">Стенды</span>
@@ -577,11 +577,6 @@ export default function CollectionPanel(props: {
               )}
             </TreeContext.Provider>
 
-            {visible.length > 0 && (
-              <StandsPanel cols={visible} statuses={urlStatuses} auths={authChecks} updatedAt={standsUpdatedAt}
-                onCheckUrl={onCheckUrl} onRefresh={onRefreshStands} onOpenCard={(id) => setCardState({ mode: "edit", id })} />
-            )}
-
             {collections.length > 0 && (
               <button onClick={() => setConfirmPurgeAll(true)}
                 className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-raised/40 px-2.5 py-2 text-[10.5px] font-extrabold text-dim transition-all duration-150 hover:border-coral/40 hover:bg-coral/10 hover:text-coral active:scale-[0.98]">
@@ -602,6 +597,14 @@ export default function CollectionPanel(props: {
           </div>
         </div>
       </DndContext>
+
+      {/* зафиксированный внизу блок доступности стендов */}
+      {visible.length > 0 && (
+        <div className="shrink-0 border-t border-line bg-panel p-3">
+          <StandsPanel cols={visible} statuses={urlStatuses} auths={authChecks} updatedAt={standsUpdatedAt}
+            onCheckUrl={onCheckUrl} onRefresh={onRefreshStands} onOpenCard={(id) => setCardState({ mode: "edit", id })} />
+        </div>
+      )}
 
       <div onPointerDown={startResize} title="Потяните, чтобы изменить ширину"
         className="group absolute inset-y-0 -right-[3px] z-10 w-[6px] cursor-ew-resize">

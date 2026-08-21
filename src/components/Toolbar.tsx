@@ -1,4 +1,5 @@
-import { Database, Play, Square, Zap } from "lucide-react";
+import { Link } from "react-router-dom";
+import { BarChart3, Database, Play, Square, Zap } from "lucide-react";
 import type { Account } from "../types";
 import { fmtTime } from "../types";
 import UserMenu from "./UserMenu";
@@ -38,6 +39,10 @@ export default function Toolbar({ buildNo, buildActive, progress, savedAt, canRu
       </div>
       <div className="ml-auto flex items-center gap-2.5">
         {savedAt && <span className="hidden text-[11px] font-semibold text-dim lg:block">сохранено в {fmtTime(savedAt)}</span>}
+        <Link to="/stats" title="Статистика — отдельная страница"
+          className="flex h-9 items-center gap-2 rounded-lg border border-line bg-raised px-3 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-amber/50 hover:text-amber active:scale-[0.97]">
+          <BarChart3 size={14} /><span className="hidden md:inline">Статистика</span>
+        </Link>
         <button onClick={onOpenData} title="Хранилище · SQL"
           className="flex h-9 items-center gap-2 rounded-lg border border-line bg-raised px-3 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-teal/50 hover:text-teal active:scale-[0.97]">
           <Database size={14} /><span className="hidden md:inline">Данные</span>

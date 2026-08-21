@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Info, Layers, Pencil, Sparkles, Tags, Trash2, X, XCircle } from "lucide-react";
+import { HashRouter, Link, Route, Routes } from "react-router-dom";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Info, Layers, Loader2, Pencil, Sparkles, Tags, Trash2, X, XCircle } from "lucide-react";
+import { BarChart3, Camera, ListChecks } from "lucide-react";
 import Toolbar from "./components/Toolbar";
 import CollectionPanel from "./components/CollectionPanel";
 import TestTable from "./components/TestTable";
@@ -8,10 +10,16 @@ import TestBuilder from "./components/TestBuilder";
 import DataDrawer from "./components/DataDrawer";
 import NewTestModal, { type NewTestData } from "./components/NewTestModal";
 import ContextMenu, { type MenuItem } from "./components/ContextMenu";
+import ShotTestsView from "./components/ShotTestsView";
+import StatsView from "./components/StatsView";
 import { autoTagColor } from "./components/TagPicker";
-import type { AuthCheckState, AutoTest, Collection, CollectionDraft, CookieJarItem, CookieStore, FolderNode, LastBuild, TestStep, ToastKind, TreeNode } from "./types";
+import type { Account, AuthCheckState, AutoTest, Collection, CollectionDraft, CookieJarItem, CookieStore, FolderNode, LastBuild, TestStep, ToastKind, TreeNode } from "./types";
 import { ROOT_SUITE, uid, fmtTime } from "./types";
-import { ACCOUNT, PEOPLE, loadState, makeRequest, saveState } from "./data";
+import { PEOPLE, loadStateFor, saveStateFor, makeRequest } from "./data";
+import { backend, type PublicUser } from "./backend";
+import type { DbSession } from "./backend/db";
+import { onDbChange } from "./backend/db";
+import AuthGate from "./components/AuthGate";
 import { childrenOf, ensureTrash, insertNode, nodeById, removeNode, restoreFromTrash, updateNodeInTree } from "./tree";
 import { buildTestUrl, probeUrl, hostOfUrl } from "./urlcheck";
 import { compareImages, getBaseline, saveBaseline, saveRunShots } from "./screenshots";
@@ -43,13 +51,17 @@ function EmptyWorkspace() {
   );
 }
 
-export default function App() {
-  const initial = useMemo(() => loadState(), []);
+function TestsWorkspace({ accountId, user, onLogout }: { accountId: string; user: PublicUser; onLogout: () => void }) {
+  const initial = useMemo(() => loadStateFor(accountId), [accountId]);
   const [collections, setCollections] = useState<Collection[]>(initial.collections);
   const [activeId, setActiveId] = useState(initial.activeId);
   const [buildNo, setBuildNo] = useState(initial.buildNo);
   const [cookieStore, setCookieStore] = useState<CookieStore>(initial.cookieStore);
-  const [account] = useState(ACCOUNT);
+  // реальный пользователь из сервисного слоя (БД) вместо демо-аккаунта
+  const account = useMemo<Account>(
+    () => ({ id: user.accountId, name: user.name, email: user.email, plan: "team", createdAt: Date.now() }),
+    [user],
+  );
   const [tagColors, setTagColors] = useState<Record<string, string>>(initial.tagColors);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,7 +86,7 @@ export default function App() {
   const [gateError, setGateError] = useState<{ kind: "stand" | "auth"; name: string; url: string; detail?: string } | null>(null);
   const [dataOpen, setDataOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [loggedOut, setLoggedOut] = useState(false);
+  const [mainTab, setMainTab] = useState<"tests" | "shots">("tests");
 
   const [urlStatuses, setUrlStatuses] = useState<Record<string, UrlStateWrap>>({});
   const [standsUpdatedAt, setStandsUpdatedAt] = useState<number | null>(null);
@@ -98,14 +110,17 @@ export default function App() {
   const selected = col ? col.tests.find((t) => t.id === selectedId) ?? null : null;
   const builderTest = col ? col.tests.find((t) => t.id === builderTestId) ?? null : null;
 
-  /* ---------- автосейв ---------- */
+  /* ---------- автосейв (per-account: локально + в облако при Supabase) ---------- */
   useEffect(() => {
     const t = window.setTimeout(() => {
-      saveState({ collections, activeId, buildNo, cookieStore, account, tagColors });
+      saveStateFor(accountId, { collections, activeId, buildNo, cookieStore, account, tagColors });
       setSavedAt(Date.now());
     }, 700);
     return () => window.clearTimeout(t);
-  }, [collections, activeId, buildNo, cookieStore, account, tagColors]);
+  }, [accountId, collections, activeId, buildNo, cookieStore, account, tagColors]);
+
+  /* ---------- realtime: изменения из других вкладок ---------- */
+  useEffect(() => onDbChange(() => setSavedAt(Date.now())), []);
 
   /* ---------- выбор теста с защитой изменений ---------- */
   const selectTest = (id: string | null) => {
@@ -196,7 +211,7 @@ export default function App() {
           tests: c.tests.map((t) =>
             t.id !== id ? t : {
               ...t, status: r.status, diffPct: r.diffPct, durMs: r.durMs, lastRun: Date.now(),
-              history: [...t.history, { id: runId, status: r.status, at: Date.now(), dur: r.durMs, diffPct: r.diffPct, byName: ACCOUNT.name, failText: r.failText }].slice(-6),
+              history: [...t.history, { id: runId, status: r.status, at: Date.now(), dur: r.durMs, diffPct: r.diffPct, byName: account.name, failText: r.failText }].slice(-6),
             },
           ),
         },
@@ -526,7 +541,7 @@ export default function App() {
           const dur = Math.max(1, Date.now() - startedAt);
           patch(cur.id, job.id, {
             status, diffPct, durMs: dur, lastRun: Date.now(),
-            history: [...job.history, { id: runId, status, at: Date.now(), dur, diffPct, byName: ACCOUNT.name, failText }].slice(-6),
+            history: [...job.history, { id: runId, status, at: Date.now(), dur, diffPct, byName: account.name, failText }].slice(-6),
           });
         } else {
           await new Promise<void>((r) => window.setTimeout(r, 650 + Math.random() * 1500));
@@ -539,7 +554,7 @@ export default function App() {
           const runId = uid();
           patch(cur.id, job.id, {
             status, diffPct, durMs: dur, lastRun: Date.now(),
-            history: [...job.history, { id: runId, status, at: Date.now(), dur, diffPct, byName: ACCOUNT.name, failText }].slice(-6),
+            history: [...job.history, { id: runId, status, at: Date.now(), dur, diffPct, byName: account.name, failText }].slice(-6),
           });
         }
 
@@ -646,33 +661,13 @@ export default function App() {
     }
   };
 
-  /* ---------- выход из аккаунта ---------- */
-  if (loggedOut) {
-    return (
-      <div className="stage-bg grid h-full place-items-center">
-        <div className="toast-in w-full max-w-[380px] rounded-2xl border border-line bg-panel p-6 text-center shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
-          <svg width="44" height="44" viewBox="0 0 32 32" className="mx-auto" aria-hidden>
-            <rect x="2" y="2" width="28" height="28" rx="8" fill="#ffb454" />
-            <path d="M9 22.5V9.5l7 7 7-7v13" stroke="#17211d" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <div className="mt-3 font-display text-[16px] font-bold text-fog">Вы вышли из аккаунта</div>
-          <p className="mt-1.5 text-[12px] font-semibold leading-relaxed text-mist">Все данные сохранены локально и вернутся при входе.</p>
-          <button onClick={() => setLoggedOut(false)}
-            className="mt-4 w-full rounded-lg bg-amber px-4 py-2.5 text-[13px] font-extrabold text-[#17211d] transition-all hover:bg-amber2 active:scale-[0.98]">
-            Войти снова
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Toolbar
         buildNo={buildNo} buildActive={buildActive} progress={progress} savedAt={savedAt}
         canRun={!buildActive} onRun={() => void startBuild(activeId)} onStop={stopBuild}
         onOpenData={() => setDataOpen(true)} account={account}
-        onLogout={() => setLoggedOut(true)} onWorkspace={() => setWorkspaceOpen(true)} />
+        onLogout={onLogout} onWorkspace={() => setWorkspaceOpen(true)} />
 
       <div className="flex min-h-0 flex-1">
         <CollectionPanel
@@ -704,20 +699,47 @@ export default function App() {
           authChecks={authChecks} onCheckAuth={(id, draft) => { const c = collections.find((x) => x.id === id); if (c) void runAuthCheck(id, { ...c, ...draft }); }}
           cookieStore={cookieStore} />
 
-        <main className="stage-bg relative min-w-0 flex-1">
-          {col ? (
-            <TestTable
-              col={col} people={PEOPLE} selectedId={selectedId} flashId={flashId}
-              onSelect={selectTest}
-              onCtxMenu={(e, t) => { e.preventDefault(); e.stopPropagation(); setTestMenu({ x: e.clientX, y: e.clientY, testId: t.id }); }}
-              onRun={(ids) => void startBuild(activeId, ids)}
-              onDelete={deleteTests} onSetEnabled={setEnabled} onToggleEnabled={toggleEnabled}
-              onAdd={() => { setPrefillSuite(ROOT_SUITE); setModalOpen(true); }}
-              tagColors={tagColors} scopedTestIds={scopedTestIds} scopeName={scopeName}
-              onClearScope={() => setFilterCmd(null)} />
-          ) : (
-            <EmptyWorkspace />
-          )}
+        <main className="relative flex min-w-0 flex-1 flex-col">
+          {/* вкладки рабочей области */}
+          <div className="flex shrink-0 items-end gap-1 border-b border-line bg-panel/70 px-4 backdrop-blur-sm">
+            {([
+              { id: "tests" as const, label: "Тесты", Icon: ListChecks, needCol: true },
+              { id: "shots" as const, label: "Скриншот тесты", Icon: Camera, needCol: false },
+            ]).filter((t) => !t.needCol || !!col).map((t) => {
+              const active = mainTab === t.id;
+              return (
+                <button key={t.id} onClick={() => setMainTab(t.id)}
+                  className={`relative -mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[12px] font-extrabold transition-all duration-150 ${
+                    active ? "border-amber text-fog" : "border-transparent text-dim hover:text-mist"}`}>
+                  <t.Icon size={14} className={active ? "text-amber" : ""} />
+                  {t.label}
+                  {active && <span className="absolute inset-x-3 -bottom-[2px] h-[2px] rounded-full bg-amber shadow-[0_0_8px_rgba(255,180,84,0.6)]" />}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="stage-bg min-h-0 flex-1">
+            {mainTab === "tests" && (col ? (
+              <TestTable
+                col={col} people={PEOPLE} selectedId={selectedId} flashId={flashId}
+                onSelect={selectTest}
+                onCtxMenu={(e, t) => { e.preventDefault(); e.stopPropagation(); setTestMenu({ x: e.clientX, y: e.clientY, testId: t.id }); }}
+                onRun={(ids) => void startBuild(activeId, ids)}
+                onDelete={deleteTests} onSetEnabled={setEnabled} onToggleEnabled={toggleEnabled}
+                onAdd={() => { setPrefillSuite(ROOT_SUITE); setModalOpen(true); }}
+                tagColors={tagColors} scopedTestIds={scopedTestIds} scopeName={scopeName}
+                onClearScope={() => setFilterCmd(null)} />
+            ) : (
+              <EmptyWorkspace />
+            ))}
+
+            {mainTab === "shots" && (
+              <ShotTestsView collections={collections} people={PEOPLE}
+                onRun={(colId, testId) => void startBuild(colId, [testId])}
+                onOpen={(colId, testId) => { setActiveId(colId); selectTest(testId); setMainTab("tests"); }} />
+            )}
+          </div>
         </main>
 
         {col && selected && (
@@ -827,5 +849,105 @@ export default function App() {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Отдельная страница «Статистика».
+ * Функционал статистики отделён от рабочей области тестов: это самостоятельный
+ * роут со своим хедером и источником данных (актуальное состояние из localStorage).
+ */
+function StatsPage({ accountId }: { accountId: string }) {
+  const { collections } = useMemo(() => loadStateFor(accountId), [accountId]);
+  const visible = collections.filter((c) => !c.deleted);
+
+  return (
+    <div className="stage-bg flex h-full flex-col overflow-hidden">
+      {/* шапка страницы статистики */}
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
+        <Link to="/" title="Вернуться к тестам"
+          className="flex items-center gap-2 rounded-lg border border-line bg-raised/60 px-3 py-2 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-teal/50 hover:text-teal active:scale-[0.97]">
+          <ArrowLeft size={14} />К тестам
+        </Link>
+        <span className="h-6 w-px bg-line" />
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-amber/25 to-teal/15 shadow-[inset_0_0_0_1px_rgba(255,180,84,0.3)]">
+            <BarChart3 size={16} className="text-amber" />
+          </span>
+          <div className="leading-none">
+            <div className="font-display text-[14px] font-bold tracking-[0.08em] text-fog">Статистика</div>
+            <div className="mt-[3px] text-[10px] font-semibold tracking-wide text-dim">сводка по скрин-сборкам</div>
+          </div>
+        </div>
+        <div className="ml-auto hidden items-center gap-2 md:flex">
+          <span className="rounded-md border border-line bg-raised/60 px-2.5 py-1 font-mono text-[10.5px] font-semibold text-mist">
+            {visible.length} {visible.length === 1 ? "коллекция" : "коллекции"}
+          </span>
+          <span className="rounded-md border border-line bg-raised/60 px-2.5 py-1 font-mono text-[10.5px] font-semibold text-mist">
+            {visible.reduce((n, c) => n + c.tests.length, 0)} тестов
+          </span>
+        </div>
+      </header>
+
+      {/* содержимое страницы */}
+      <main className="min-h-0 flex-1 overflow-y-auto scroll-thin">
+        <StatsView collections={visible} />
+      </main>
+    </div>
+  );
+}
+
+/** Экран загрузки, пока восстанавливается сессия */
+function BootScreen() {
+  return (
+    <div className="stage-bg grid h-full place-items-center">
+      <div className="fade-up flex flex-col items-center gap-4">
+        <svg width="52" height="52" viewBox="0 0 32 32" aria-hidden>
+          <rect x="2" y="2" width="28" height="28" rx="8" fill="#ffb454" />
+          <path d="M9 22.5V9.5l7 7 7-7v13" stroke="#17211d" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <Loader2 size={22} className="spin text-teal" />
+        <div className="text-[12px] font-semibold text-mist">Открываем рабочее место…</div>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [session, setSession] = useState<{ user: PublicUser; session: DbSession } | null>(null);
+  const [booting, setBooting] = useState(true);
+
+  /* восстановление сессии при старте (БД: localStorage или Supabase) */
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(backend.restore()).then((r) => {
+      if (live) {
+        setSession(r);
+        setBooting(false);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const handleLogout = () => {
+    Promise.resolve(backend.logout()).then(() => setSession(null));
+  };
+
+  if (booting) return <BootScreen />;
+
+  if (!session) {
+    return <AuthGate onAuthed={(user, sess) => setSession({ user, session: sess })} />;
+  }
+
+  return (
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<TestsWorkspace accountId={session.user.accountId} user={session.user} onLogout={handleLogout} />} />
+        <Route path="/stats" element={<StatsPage accountId={session.user.accountId} />} />
+        <Route path="*" element={<TestsWorkspace accountId={session.user.accountId} user={session.user} onLogout={handleLogout} />} />
+      </Routes>
+    </HashRouter>
   );
 }
