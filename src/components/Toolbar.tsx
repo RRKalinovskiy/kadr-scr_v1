@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { BarChart3, Database, Play, Square, Zap } from "lucide-react";
 import type { Account } from "../types";
 import { fmtTime } from "../types";
+import { backend } from "../backend";
 import UserMenu from "./UserMenu";
 
 interface Props {
@@ -38,6 +39,14 @@ export default function Toolbar({ buildNo, buildActive, progress, savedAt, canRu
         {buildActive && progress && <span className="font-mono text-[11px] font-bold text-teal">{progress.done}/{progress.total}</span>}
       </div>
       <div className="ml-auto flex items-center gap-2.5">
+        {/* индикатор режима хранилища */}
+        <span
+          title={backend.mode === "supabase" ? "Данные синхронизируются с облачной БД (Supabase)" : "Данные хранятся локально в браузере"}
+          className={`hidden items-center gap-1.5 rounded-md border px-2 py-1 text-[9.5px] font-extrabold uppercase tracking-wide md:flex ${
+            backend.mode === "supabase" ? "border-teal/40 bg-teal/[0.08] text-teal" : "border-line bg-raised/60 text-dim"}`}>
+          <Database size={11} />
+          {backend.mode === "supabase" ? "Облако" : "Локально"}
+        </span>
         {savedAt && <span className="hidden text-[11px] font-semibold text-dim lg:block">сохранено в {fmtTime(savedAt)}</span>}
         <Link to="/stats" title="Статистика — отдельная страница"
           className="flex h-9 items-center gap-2 rounded-lg border border-line bg-raised px-3 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-amber/50 hover:text-amber active:scale-[0.97]">
