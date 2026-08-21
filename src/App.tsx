@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Info, Layers, Pencil, Sparkles, Tags, Trash2, X, XCircle } from "lucide-react";
+import { HashRouter, Link, Route, Routes } from "react-router-dom";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Info, Layers, Pencil, Sparkles, Tags, Trash2, X, XCircle } from "lucide-react";
 import { BarChart3, Camera, ListChecks } from "lucide-react";
 import Toolbar from "./components/Toolbar";
 import CollectionPanel from "./components/CollectionPanel";
@@ -46,7 +47,7 @@ function EmptyWorkspace() {
   );
 }
 
-export default function App() {
+function TestsWorkspace() {
   const initial = useMemo(() => loadState(), []);
   const [collections, setCollections] = useState<Collection[]>(initial.collections);
   const [activeId, setActiveId] = useState(initial.activeId);
@@ -78,7 +79,7 @@ export default function App() {
   const [dataOpen, setDataOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [loggedOut, setLoggedOut] = useState(false);
-  const [mainTab, setMainTab] = useState<"tests" | "shots" | "stats">("tests");
+  const [mainTab, setMainTab] = useState<"tests" | "shots">("tests");
 
   const [urlStatuses, setUrlStatuses] = useState<Record<string, UrlStateWrap>>({});
   const [standsUpdatedAt, setStandsUpdatedAt] = useState<number | null>(null);
@@ -714,7 +715,6 @@ export default function App() {
             {([
               { id: "tests" as const, label: "Тесты", Icon: ListChecks, needCol: true },
               { id: "shots" as const, label: "Скриншот тесты", Icon: Camera, needCol: false },
-              { id: "stats" as const, label: "Статистика", Icon: BarChart3, needCol: false },
             ]).filter((t) => !t.needCol || !!col).map((t) => {
               const active = mainTab === t.id;
               return (
@@ -749,8 +749,6 @@ export default function App() {
                 onRun={(colId, testId) => void startBuild(colId, [testId])}
                 onOpen={(colId, testId) => { setActiveId(colId); selectTest(testId); setMainTab("tests"); }} />
             )}
-
-            {mainTab === "stats" && <StatsView collections={collections} />}
           </div>
         </main>
 
@@ -861,5 +859,62 @@ export default function App() {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Отдельная страница «Статистика».
+ * Функционал статистики отделён от рабочей области тестов: это самостоятельный
+ * роут со своим хедером и источником данных (актуальное состояние из localStorage).
+ */
+function StatsPage() {
+  const { collections } = useMemo(() => loadState(), []);
+  const visible = collections.filter((c) => !c.deleted);
+
+  return (
+    <div className="stage-bg flex h-full flex-col overflow-hidden">
+      {/* шапка страницы статистики */}
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
+        <Link to="/" title="Вернуться к тестам"
+          className="flex items-center gap-2 rounded-lg border border-line bg-raised/60 px-3 py-2 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-teal/50 hover:text-teal active:scale-[0.97]">
+          <ArrowLeft size={14} />К тестам
+        </Link>
+        <span className="h-6 w-px bg-line" />
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-amber/25 to-teal/15 shadow-[inset_0_0_0_1px_rgba(255,180,84,0.3)]">
+            <BarChart3 size={16} className="text-amber" />
+          </span>
+          <div className="leading-none">
+            <div className="font-display text-[14px] font-bold tracking-[0.08em] text-fog">Статистика</div>
+            <div className="mt-[3px] text-[10px] font-semibold tracking-wide text-dim">сводка по скрин-сборкам</div>
+          </div>
+        </div>
+        <div className="ml-auto hidden items-center gap-2 md:flex">
+          <span className="rounded-md border border-line bg-raised/60 px-2.5 py-1 font-mono text-[10.5px] font-semibold text-mist">
+            {visible.length} {visible.length === 1 ? "коллекция" : "коллекции"}
+          </span>
+          <span className="rounded-md border border-line bg-raised/60 px-2.5 py-1 font-mono text-[10.5px] font-semibold text-mist">
+            {visible.reduce((n, c) => n + c.tests.length, 0)} тестов
+          </span>
+        </div>
+      </header>
+
+      {/* содержимое страницы */}
+      <main className="min-h-0 flex-1 overflow-y-auto scroll-thin">
+        <StatsView collections={visible} />
+      </main>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<TestsWorkspace />} />
+        <Route path="/stats" element={<StatsPage />} />
+        <Route path="*" element={<TestsWorkspace />} />
+      </Routes>
+    </HashRouter>
   );
 }

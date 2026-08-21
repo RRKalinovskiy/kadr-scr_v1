@@ -48,13 +48,8 @@ export default function StatsView({ collections }: { collections: Collection[] }
   const seg = (n: number) => (agg.total > 0 ? (n / agg.total) * 100 : 0);
 
   return (
-    <div className="h-full overflow-y-auto scroll-thin">
+    <div>
       <div className="mx-auto max-w-[1100px] px-6 py-5">
-        <div className="mb-4 flex items-baseline gap-2.5">
-          <h2 className="font-display text-[18px] font-bold text-fog">Статистика</h2>
-          <span className="rounded-md bg-raised px-2 py-0.5 font-mono text-[11px] font-bold text-mist">{cols.length} {cols.length === 1 ? "коллекция" : "коллекций"}</span>
-          <span className="ml-auto font-mono text-[11px] font-semibold text-dim">прохождение <span className="text-[#46d68c]">{passRate}%</span></span>
-        </div>
 
         {/* метрики */}
         <div className="grid grid-cols-2 gap-3.5 md:grid-cols-5">
