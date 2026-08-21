@@ -35,6 +35,12 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Ключи Supabase (БД + аутентификация). Задаются в
+          # Settings → Secrets and variables → Actions. Если не заданы —
+          # сайт собирается в локальном режиме (данные в localStorage).
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Upload artifact (dist)
         uses: actions/upload-pages-artifact@v3
