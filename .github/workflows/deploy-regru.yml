@@ -1,0 +1,77 @@
+# ============================================================
+# Автодеплой на хостинг reg.ru → сайт kadr-scr.ru
+# ============================================================
+# При каждом пуше в main/master GitHub Actions:
+#   1) собирает проект (npm run build → единый dist/index.html);
+#   2) подключает ключи БД (если заданы);
+#   3) загружает содержимое dist/ на хостинг reg.ru по FTP
+#      в папку сайта /www/kadr-scr.ru/.
+#
+# НАСТРОЙКА (один раз):
+#   GitHub → репозиторий → Settings → Secrets and variables → Actions
+#   → New repository secret. Создайте секреты:
+#
+#     FTP_SERVER      server290.hosting.reg.ru
+#                     (или FTP-адрес из панели reg.ru: «FTP» → данные доступа)
+#     FTP_USERNAME    логин FTP (в reg.ru обычно вида kadr-scr.ru или uXXXXXX)
+#     FTP_PASSWORD    пароль FTP
+#     FTP_TARGET_DIR  /www/kadr-scr.ru/      (ОБЯЗАТЕЛЬНО со слешем на конце!)
+#
+#   Ключи БД (опционально, чтобы сайт работал с облачной БД Supabase):
+#     VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+#   Если они не заданы и нет .env.production — сайт соберётся в локальном
+#   режиме (данные в localStorage браузера) и всё равно будет работать.
+# ============================================================
+
+name: Deploy to reg.ru (kadr-scr.ru)
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      # Подключение БД: секреты GitHub имеют приоритет над .env.production.
+      # Если не задано ничего — локальный режим (localStorage).
+      - name: Apply Supabase config
+        run: |
+          if [ -n "$SB_URL" ]; then
+            printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\n' "$SB_URL" "$SB_KEY" > .env.production
+            echo "→ Используем ключи БД из секретов GitHub"
+          elif [ -f .env.production ]; then
+            echo "→ Используем .env.production из репозитория"
+          else
+            echo "→ Ключи БД не заданы: локальный режим (localStorage)"
+          fi
+        env:
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Build
+        run: npm run build
+
+      # Загрузка собранного сайта на reg.ru по FTP.
+      # local-dir  — что загружаем (папка dist со сборкой);
+      # server-dir — куда на хостинге (папка сайта).
+      - name: Upload to reg.ru via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: ${{ secrets.FTP_TARGET_DIR }}
