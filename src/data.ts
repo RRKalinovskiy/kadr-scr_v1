@@ -240,6 +240,24 @@ function normalize(p: PersistedState): PersistedState {
 }
 
 /**
+ * При старте (Supabase-режим) подтягивает состояние рабочего места из облака в
+ * локальный кеш, чтобы синхронная загрузка (loadStateFor) увидела актуальные
+ * данные, а не пустые сиды. В локальном режиме — ничего не делает.
+ * Вызывать один раз после восстановления сессии, до первого рендера workspace.
+ */
+export async function hydrateState(accountId: string): Promise<void> {
+  if (!isSupabase()) return;
+  try {
+    const cloud = await supabaseBackend.loadState<PersistedState>(accountId);
+    if (cloud && Array.isArray(cloud.collections) && cloud.collections.length) {
+      db.saveAccountState(accountId, cloud);
+    }
+  } catch {
+    /* нет связи с облаком — работаем с локальным кешем */
+  }
+}
+
+/**
  * Загружает состояние рабочего места аккаунта (синхронно).
  * В Supabase-режиме приложение предварительно кеширует облачное состояние в
  * localStorage (см. App), поэтому здесь всегда работает быстрый локальный путь.

@@ -15,7 +15,7 @@ import StatsView from "./components/StatsView";
 import { autoTagColor } from "./components/TagPicker";
 import type { Account, AuthCheckState, AutoTest, Collection, CollectionDraft, CookieJarItem, CookieStore, FolderNode, LastBuild, TestStep, ToastKind, TreeNode } from "./types";
 import { ROOT_SUITE, uid, fmtTime } from "./types";
-import { PEOPLE, loadStateFor, saveStateFor, makeRequest } from "./data";
+import { PEOPLE, loadStateFor, saveStateFor, makeRequest, hydrateState } from "./data";
 import { backend, type PublicUser } from "./backend";
 import type { DbSession } from "./backend/db";
 import { onDbChange } from "./backend/db";
@@ -917,10 +917,14 @@ export default function App() {
   const [session, setSession] = useState<{ user: PublicUser; session: DbSession } | null>(null);
   const [booting, setBooting] = useState(true);
 
-  /* восстановление сессии при старте (БД: localStorage или Supabase) */
+  /* восстановление сессии при старте (БД: localStorage или Supabase),
+     затем (в облачном режиме) подтягиваем состояние рабочего места из БД */
   useEffect(() => {
     let live = true;
-    Promise.resolve(backend.restore()).then((r) => {
+    Promise.resolve(backend.restore()).then(async (r) => {
+      if (r) {
+        await hydrateState(r.user.accountId);
+      }
       if (live) {
         setSession(r);
         setBooting(false);
@@ -938,7 +942,13 @@ export default function App() {
   if (booting) return <BootScreen />;
 
   if (!session) {
-    return <AuthGate onAuthed={(user, sess) => setSession({ user, session: sess })} />;
+    return (
+      <AuthGate
+        onAuthed={(user, sess) => {
+          void hydrateState(user.accountId).then(() => setSession({ user, session: sess }));
+        }}
+      />
+    );
   }
 
   return (
