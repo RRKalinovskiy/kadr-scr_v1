@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 import { DndContext, DragOverlay, PointerSensor, closestCorners, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArchiveRestore, ChevronRight, Folder, FolderOpen, FolderPlus, Layers, Lock, Pencil, Play, Plus, RefreshCw, RotateCcw, Server, Settings, Shield, ShieldAlert, ShieldCheck, Trash2, Zap } from "lucide-react";
+import {
+  AlertTriangle, ArchiveRestore, ChevronRight, Folder, FolderOpen, FolderPlus, Layers, Lock, Pencil, Play, Plus,
+  RefreshCw, RotateCcw, Server, Settings, Shield, ShieldAlert, ShieldCheck, Sparkles, Trash2, Zap,
+} from "lucide-react";
 import type { AuthCheckState, Collection, CollectionDraft, CookieStore, FolderNode, HttpMethod, RequestNode, TreeNode } from "../types";
 import { METHOD_COLORS } from "../types";
 import { childrenOf, getTrash, isDescendant, isInsideTrash, nodeById, parentOf, treeStats } from "../tree";
@@ -52,7 +55,7 @@ function useSortRow(id: string, disabled: boolean) {
 function MethodBadge({ method }: { method: HttpMethod }) {
   const c = METHOD_COLORS[method];
   return (
-    <span className="grid w-[44px] shrink-0 place-items-center rounded py-[3px] font-mono text-[9px] font-bold"
+    <span className="grid w-[40px] shrink-0 place-items-center rounded-md py-[3px] font-mono text-[9px] font-bold"
       style={{ color: c, background: `${c}1c`, boxShadow: `inset 0 0 0 1px ${c}55` }}>
       {method}
     </span>
@@ -107,11 +110,7 @@ function FolderRow({ node }: { node: FolderNode }) {
         </button>
         {open ? <FolderOpen size={14} className="shrink-0 text-amber" /> : <Folder size={14} className="shrink-0 text-amber/80" />}
         <span className={`truncate text-[12px] font-extrabold ${scoped ? "text-teal" : "text-fog"}`}>{node.name}</span>
-        <button onClick={(e) => { e.stopPropagation(); ctx.onFilterFailing(node.id); }} onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}
-          title="Упавшие тесты папки"
-          className="ml-0.5 rounded bg-line/70 px-1.5 py-[1px] font-mono text-[9.5px] font-bold text-mist transition-all hover:bg-coral/20 hover:text-coral active:scale-95">
-          {node.children.length}
-        </button>
+        <span className="ml-0.5 rounded bg-line/70 px-1.5 py-[1px] font-mono text-[9.5px] font-bold text-mist">{node.children.length}</span>
         {scoped && <span className="pulse-dot ml-auto mr-1 h-1.5 w-1.5 shrink-0 rounded-full bg-teal" />}
         <NodeActions node={node} onAddRequest={() => ctx.onAddRequest(node.id)} />
       </div>
@@ -120,7 +119,7 @@ function FolderRow({ node }: { node: FolderNode }) {
           <SortableContext items={node.children.map((n) => n.id)} strategy={verticalListSortingStrategy}>
             {node.children.map((n) => (n.kind === "request" ? <RequestRow key={n.id} node={n} /> : <FolderRow key={n.id} node={n} />))}
           </SortableContext>
-          {node.children.length === 0 && <div className="rounded-md border border-dashed border-line2/60 px-2 py-1.5 text-[10.5px] font-semibold text-dim">Папка пуста — добавьте запрос</div>}
+          {node.children.length === 0 && <div className="rounded-md border border-dashed border-line2/60 px-2 py-1.5 text-[10.5px] font-semibold text-dim">Папка пуста</div>}
         </div>
       )}
     </div>
@@ -173,30 +172,40 @@ function TrashFolderRow({ node }: { node: FolderNode }) {
   );
 }
 
-function CollectionItem({ c, active, expanded, colDragDisabled, onToggle, onCtx, onOpenCard, onFailingFilter, children }: {
+/* ---------- строка коллекции: проще и дружелюбнее ---------- */
+function CollectionItem({ c, active, expanded, colDragDisabled, onToggle, onCtx, onOpenCard, children }: {
   c: Collection; active: boolean; expanded: boolean; colDragDisabled: boolean;
-  onToggle: () => void; onCtx: (e: React.MouseEvent, id: string) => void; onOpenCard: () => void; onFailingFilter: (id: string) => void;
+  onToggle: () => void; onCtx: (e: React.MouseEvent, id: string) => void; onOpenCard: () => void;
   children?: ReactNode;
 }) {
   const { wrapper, handle } = useSortRow(c.id, colDragDisabled);
+  const tests = c.tests.length;
   const failing = c.tests.filter((t) => t.status === "failed" || t.status === "diff").length;
   return (
     <div {...wrapper}>
       <div {...handle} onClick={onToggle} onContextMenu={(e) => onCtx(e, c.id)}
-        className={`group flex h-[38px] cursor-grab select-none items-center gap-2 rounded-lg border px-2 transition-all duration-150 active:cursor-grabbing ${active ? "border-line2 bg-raised/80" : "border-transparent hover:border-line hover:bg-raised/60"}`}>
-        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md" style={{ background: `${c.color}1f`, color: c.color }}><Layers size={13} /></span>
-        <span className={`min-w-0 flex-1 truncate text-[12.5px] font-extrabold ${active ? "text-fog" : "text-mist group-hover:text-fog"}`}>{c.name}</span>
+        className={`group relative flex cursor-grab select-none items-center gap-2.5 rounded-xl border px-2.5 py-2 transition-all duration-150 active:cursor-grabbing ${
+          active
+            ? "border-line2 bg-raised shadow-[0_6px_20px_rgba(0,0,0,0.25)]"
+            : "border-transparent hover:border-line hover:bg-raised/60"
+        }`}>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-transform duration-150 group-hover:scale-105"
+          style={{ background: `${c.color}22`, color: c.color, boxShadow: `inset 0 0 0 1px ${c.color}40` }}>
+          <Layers size={15} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className={`truncate text-[13px] font-extrabold leading-tight ${active ? "text-fog" : "text-mist group-hover:text-fog"}`}>{c.name}</div>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span className="font-mono text-[10px] font-bold text-dim">{tests} {tests === 1 ? "тест" : tests >= 2 && tests <= 4 ? "теста" : "тестов"}</span>
+            {failing > 0 && <span className="rounded bg-coral/15 px-1.5 py-[1px] font-mono text-[9px] font-bold text-coral">{failing} ⚠</span>}
+          </div>
+        </div>
         <button onClick={(e) => { e.stopPropagation(); onOpenCard(); }} onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}
-          title="Открыть карточку коллекции"
-          className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-dim opacity-0 transition-all duration-150 hover:bg-amber/15 hover:text-amber group-hover:opacity-100 active:scale-90">
+          title="Настройки коллекции"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-dim opacity-0 transition-all duration-150 hover:bg-amber/15 hover:text-amber group-hover:opacity-100 active:scale-90">
           <Settings size={13} />
         </button>
-        <button onClick={(e) => { e.stopPropagation(); onFailingFilter(c.id); }} onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}
-          title="Упавшие автотесты — фильтровать список"
-          className={`shrink-0 rounded-md px-1.5 py-[2px] font-mono text-[10px] font-bold transition-all active:scale-95 ${failing > 0 ? "bg-coral/15 text-coral hover:bg-coral/30" : "bg-line/60 text-dim hover:text-mist"}`}>
-          {failing}
-        </button>
-        <ChevronRight size={12} className={`shrink-0 text-dim transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
+        <ChevronRight size={13} className={`shrink-0 text-dim transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
       </div>
       {children}
     </div>
@@ -206,7 +215,7 @@ function CollectionItem({ c, active, expanded, colDragDisabled, onToggle, onCtx,
 function DeletedRow({ c, onRestore, onPurge, onCtx }: { c: Collection; onRestore: () => void; onPurge: () => void; onCtx: (e: React.MouseEvent, id: string) => void }) {
   const stats = treeStats(c.tree);
   return (
-    <div onContextMenu={(e) => onCtx(e, c.id)} className="group flex items-center gap-2 rounded-lg border border-dashed border-line2/60 bg-raised/30 px-2 py-1.5 opacity-75 transition-all hover:opacity-100">
+    <div onContextMenu={(e) => onCtx(e, c.id)} className="group flex items-center gap-2 rounded-xl border border-dashed border-line2/60 bg-raised/30 px-2.5 py-1.5 opacity-75 transition-all hover:opacity-100">
       <Trash2 size={13} className="shrink-0 text-coral/70" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12px] font-extrabold text-mist line-through decoration-coral/50">{c.name}</div>
@@ -216,6 +225,25 @@ function DeletedRow({ c, onRestore, onPurge, onCtx }: { c: Collection; onRestore
         <button onClick={onRestore} title="Восстановить коллекцию" className="grid h-6 w-6 place-items-center rounded-md text-teal transition-all hover:bg-teal/15 active:scale-90"><ArchiveRestore size={13} /></button>
         <button onClick={onPurge} title="Удалить безвозвратно" className="grid h-6 w-6 place-items-center rounded-md text-coral transition-all hover:bg-coral/15 active:scale-90"><Trash2 size={13} /></button>
       </span>
+    </div>
+  );
+}
+
+/* ---------- заглушка пустого списка ---------- */
+function EmptyCollections({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="fade-up mt-1 rounded-2xl border border-dashed border-line2/70 bg-raised/30 px-4 py-7 text-center">
+      <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-amber/20 to-teal/15 shadow-[inset_0_0_0_1px_rgba(255,180,84,0.25)]">
+        <Sparkles size={20} className="text-amber" />
+      </div>
+      <div className="text-[13px] font-extrabold text-fog">Здесь появятся наборы</div>
+      <p className="mx-auto mt-1.5 max-w-[210px] text-[11px] font-semibold leading-relaxed text-mist">
+        Коллекция — это стенд и сценарии, по которым «КАДР» снимает и сверяет кадры.
+      </p>
+      <button onClick={onCreate}
+        className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-amber px-3.5 py-2 text-[11.5px] font-extrabold text-[#17211d] shadow-[0_2px_12px_rgba(255,180,84,0.3)] transition-all duration-150 hover:bg-amber2 active:scale-95">
+        <Plus size={13} strokeWidth={2.8} />Создать первый набор
+      </button>
     </div>
   );
 }
@@ -234,10 +262,10 @@ function StandsPanel({ cols, statuses, auths, updatedAt, onCheckUrl, onRefresh, 
     return <Shield size={12} className="shrink-0 text-line2" />;
   };
   return (
-    <div className="mt-3 overflow-hidden rounded-lg border border-line bg-raised/40">
+    <div className="mt-3 overflow-hidden rounded-xl border border-line bg-raised/40">
       <div className="flex items-center gap-1.5 border-b border-line/70 px-2.5 py-2">
         <Server size={12} className="shrink-0 text-teal" />
-        <span className="text-[9.5px] font-extrabold uppercase tracking-[0.13em] text-mist">Доступность стендов</span>
+        <span className="text-[9.5px] font-extrabold uppercase tracking-[0.13em] text-mist">Стенды</span>
         <span className="ml-auto rounded bg-line/70 px-1.5 py-[1px] font-mono text-[9px] font-bold text-mist">{okCount}/{cols.length}</span>
         <button onClick={onRefresh} title="Проверить все стенды" className="grid h-[22px] w-[22px] place-items-center rounded-md text-dim transition-all duration-150 hover:bg-line hover:text-teal active:scale-90">
           <RefreshCw size={11} className={anyChecking ? "spin" : ""} />
@@ -248,7 +276,7 @@ function StandsPanel({ cols, statuses, auths, updatedAt, onCheckUrl, onRefresh, 
           const meta = urlStatusMeta(statuses[c.id]);
           const checking = statuses[c.id]?.state === "checking";
           return (
-            <div key={c.id} onClick={() => onOpenCard(c.id)} title={`Открыть карточку «${c.name}»`}
+            <div key={c.id} onClick={() => onOpenCard(c.id)} title={`Открыть «${c.name}»`}
               className="group flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-[5px] transition-colors duration-150 hover:bg-raised">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${checking ? "pulse-dot" : ""}`} style={{ background: meta.color }} />
               <div className="min-w-0 flex-1">
@@ -258,7 +286,6 @@ function StandsPanel({ cols, statuses, auths, updatedAt, onCheckUrl, onRefresh, 
               <AuthShield auth={auths[c.id]} />
               <div className="shrink-0 text-right">
                 <div className="font-mono text-[9.5px] font-bold leading-tight" style={{ color: meta.color }}>{meta.label}</div>
-                {meta.sub && <div className="font-mono text-[8.5px] font-semibold leading-tight text-dim">{meta.sub}</div>}
               </div>
               <button onClick={(e) => { e.stopPropagation(); onCheckUrl(c.id); }} title="Проверить стенд"
                 className="grid h-5 w-5 shrink-0 place-items-center rounded text-dim opacity-0 transition-all duration-150 hover:text-teal group-hover:opacity-100 active:scale-90">
@@ -269,7 +296,7 @@ function StandsPanel({ cols, statuses, auths, updatedAt, onCheckUrl, onRefresh, 
         })}
       </div>
       <div className="border-t border-line/70 px-2.5 py-1.5 text-[9px] font-semibold text-dim">
-        {updatedAt ? `обновлено в ${new Date(updatedAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}` : "проверяем…"} · авто — после каждой сборки
+        {updatedAt ? `обновлено в ${new Date(updatedAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}` : "проверяем…"}
       </div>
     </div>
   );
@@ -289,16 +316,17 @@ export default function CollectionPanel(props: {
   onDeleteCollection: (id: string) => void;
   onRestoreNode: (nodeId: string) => void; onPurgeNode: (nodeId: string) => void;
   onRestoreCollection: (id: string) => void; onPurgeCollection: (id: string) => void;
+  onPurgeAll: () => void;
   onSaveCard: (id: string, patch: Partial<Collection>) => void;
   buildActive: boolean; onRunAll: (id: string) => void;
   urlStatuses: Record<string, UrlState>; onCheckUrl: (id: string) => void; onRefreshStands: () => void;
   standsUpdatedAt: number | null; authChecks: Record<string, AuthCheckState>;
   onCheckAuth: (id: string, draft?: CollectionDraft) => void; cookieStore: CookieStore;
 }) {
-  const { collections, activeId, onSelect, folderScope, onSelectFolder, onOpenTest, onFilterFailing, onCreateCollection, onCreateNode, onAddRequest, onUpdateNode, onDeleteNode, onMoveNode, onMoveCollection, onDeleteCollection, onRestoreNode, onPurgeNode, onRestoreCollection, onPurgeCollection, onSaveCard, buildActive, onRunAll, urlStatuses, onCheckUrl, onRefreshStands, standsUpdatedAt, authChecks, onCheckAuth, cookieStore } = props;
+  const { collections, activeId, onSelect, folderScope, onSelectFolder, onOpenTest, onFilterFailing, onCreateCollection, onCreateNode, onAddRequest, onUpdateNode, onDeleteNode, onMoveNode, onMoveCollection, onDeleteCollection, onRestoreNode, onPurgeNode, onRestoreCollection, onPurgeCollection, onPurgeAll, onSaveCard, buildActive, onRunAll, urlStatuses, onCheckUrl, onRefreshStands, standsUpdatedAt, authChecks, onCheckAuth, cookieStore } = props;
 
-  const col = collections.find((c) => c.id === activeId) ?? collections[0];
-  const tree = col.tree;
+  const col = collections.find((c) => c.id === activeId && !c.deleted) ?? collections.find((c) => !c.deleted) ?? collections[0];
+  const tree = col?.tree ?? [];
   const trashFolder = getTrash(tree);
   const normalNodes = tree.filter((n) => !(n.kind === "folder" && n.isTrash));
   const visible = collections.filter((c) => !c.deleted);
@@ -311,8 +339,9 @@ export default function CollectionPanel(props: {
   const [modal, setModal] = useState<NodeModalState | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; target: MenuTarget } | null>(null);
   const [purge, setPurge] = useState<{ kind: "collection" | "node"; id: string; name: string } | null>(null);
+  const [confirmPurgeAll, setConfirmPurgeAll] = useState(false);
   const [dragInfo, setDragInfo] = useState<{ kind: "collection" | "node"; label: string; node?: TreeNode } | null>(null);
-  const [panelW, setPanelW] = useState(() => Math.min(430, Math.max(232, +(localStorage.getItem("kadr-panel-w") || 292))));
+  const [panelW, setPanelW] = useState(() => Math.min(430, Math.max(232, +(localStorage.getItem("kadr-panel-w") || 300))));
   const movedRef = useRef(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -324,7 +353,7 @@ export default function CollectionPanel(props: {
   const toggleFolder = (id: string) => setExpandedFolders((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const onColClick = (id: string) => { setExpandedCol((prev) => (prev === id ? null : id)); onSelect(id); };
   const openEdit = (node: TreeNode) => setModal({ mode: "edit", node });
-  const openCreateFolder = (parentId: string | null) => setModal({ mode: "create", kind: "folder", parentId, parentName: parentId ? nodeById(tree, parentId)?.name ?? col.name : col.name });
+  const openCreateFolder = (parentId: string | null) => setModal({ mode: "create", kind: "folder", parentId, parentName: parentId ? nodeById(tree, parentId)?.name ?? col?.name ?? "набор" : col?.name ?? "набор" });
   const submitModal = (r: NodeSubmit) => {
     if (r.editId) onUpdateNode(r.editId, { name: r.name, path: r.path });
     else onCreateNode(r.parentId, { kind: r.kind, name: r.name, path: r.path });
@@ -344,8 +373,8 @@ export default function CollectionPanel(props: {
       ];
       return [
         { id: "run-all", label: "Запустить все", icon: <Play size={14} />, hint: String(c?.tests.length ?? 0), disabled: buildActive },
-        { id: "edit", label: "Редактировать карточку", icon: <Pencil size={14} />, sep: true },
-        { id: "delete", label: "Удалить", icon: <Trash2 size={14} />, danger: true, hint: "в корзину", disabled: visible.length <= 1, sep: true },
+        { id: "edit", label: "Настройки коллекции", icon: <Settings size={14} />, sep: true },
+        { id: "delete", label: "В корзину", icon: <Trash2 size={14} />, danger: true, sep: true },
       ];
     }
     if (t.kind === "node") {
@@ -357,7 +386,7 @@ export default function CollectionPanel(props: {
       ];
       return [
         { id: "edit", label: isFolder ? "Редактировать папку" : "Редактировать запрос", icon: <Pencil size={14} /> },
-        { id: "delete", label: "В корзину", icon: <Trash2 size={14} />, sep: true, hint: isFolder ? "с вложениями" : undefined },
+        { id: "delete", label: "В корзину", icon: <Trash2 size={14} />, danger: true, sep: true, hint: isFolder ? "с вложениями" : undefined },
       ];
     }
     return [
@@ -478,11 +507,14 @@ export default function CollectionPanel(props: {
         onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
         <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
           <div className="p-4 pb-3">
-            <div className="mb-2.5 flex items-center justify-between">
-              <div className="text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-dim">Наборы сценариев</div>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-dim">Наборы сценариев</div>
+                {visible.length > 0 && <div className="mt-0.5 font-mono text-[9.5px] font-semibold text-dim">{visible.length} {visible.length === 1 ? "коллекция" : "коллекции"}</div>}
+              </div>
               <div className="flex items-center gap-1">
                 {deleted.length > 0 && (
-                  <button onClick={() => setShowDeleted((v) => !v)} title={showDeleted ? "Скрыть удалённые" : "Показать удалённые коллекции"}
+                  <button onClick={() => setShowDeleted((v) => !v)} title={showDeleted ? "Скрыть корзину" : "Показать корзину"}
                     className={`flex h-6 items-center gap-1 rounded-md px-1.5 font-mono text-[10px] font-bold transition-all duration-150 active:scale-90 ${showDeleted ? "bg-coral/15 text-coral" : "bg-line/60 text-mist hover:text-fog"}`}>
                     <Trash2 size={11} /> {deleted.length}
                   </button>
@@ -495,38 +527,41 @@ export default function CollectionPanel(props: {
             </div>
 
             <TreeContext.Provider value={treeCtx}>
-              <SortableContext items={visible.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-1.5">
-                  {visible.map((c) => (
-                    <CollectionItem key={c.id} c={c} active={c.id === activeId} expanded={expandedCol === c.id}
-                      colDragDisabled={dragInfo?.kind === "node"}
-                      onToggle={() => onColClick(c.id)} onCtx={(e, id) => openMenu(e, { kind: "collection", id })}
-                      onOpenCard={() => setCardState({ mode: "edit", id: c.id })} onFailingFilter={(id) => onFilterFailing(id)}>
-                      {expandedCol === c.id && c.id === col.id && (
-                        <div className="fade-up ml-[15px] mt-1.5 space-y-[3px] border-l border-line/70 py-0.5 pl-2 pr-0.5" onContextMenu={(e) => openMenu(e, { kind: "space" })}>
-                          <SortableContext items={normalNodes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
-                            {normalNodes.map((n) => (n.kind === "request" ? <RequestRow key={n.id} node={n} /> : <FolderRow key={n.id} node={n} />))}
-                          </SortableContext>
-                          {normalNodes.length === 0 && <div className="rounded-md border border-dashed border-line2/60 px-2 py-2 text-[10.5px] font-semibold leading-relaxed text-dim">Пока пусто. Добавьте первый запрос или папку со сценариями.</div>}
-                          {trashFolder && <TrashFolderRow node={trashFolder} />}
-                          <div className="flex gap-1 pt-1" onContextMenu={(e) => e.stopPropagation()}>
-                            <button onClick={() => onAddRequest(focusedFolder)}
-                              title={focusedFolder ? `Будет добавлен в «${nodeById(tree, focusedFolder)?.name}»` : "Будет добавлен в корень набора"}
-                              className="flex items-center gap-1 rounded-md border border-line bg-raised/60 px-2 py-1 text-[10.5px] font-extrabold text-mist transition-all duration-150 hover:border-teal/50 hover:text-teal active:scale-95">
-                              <Zap size={10} /> Запрос
-                              {focusedFolder && <span className="font-mono text-[9px] font-semibold text-teal">→ {nodeById(tree, focusedFolder)?.name}</span>}
-                            </button>
-                            <button onClick={() => openCreateFolder(focusedFolder)}
-                              className="flex items-center gap-1 rounded-md border border-line bg-raised/60 px-2 py-1 text-[10.5px] font-extrabold text-mist transition-all duration-150 hover:border-amber/50 hover:text-amber active:scale-95">
-                              <FolderPlus size={10} /> Папка
-                            </button>
+              {visible.length === 0 ? (
+                <EmptyCollections onCreate={() => setCardState({ mode: "create" })} />
+              ) : (
+                <SortableContext items={visible.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-1.5">
+                    {visible.map((c) => (
+                      <CollectionItem key={c.id} c={c} active={c.id === activeId} expanded={expandedCol === c.id}
+                        colDragDisabled={dragInfo?.kind === "node"}
+                        onToggle={() => onColClick(c.id)} onCtx={(e, id) => openMenu(e, { kind: "collection", id })}
+                        onOpenCard={() => setCardState({ mode: "edit", id: c.id })}>
+                        {expandedCol === c.id && col && c.id === col.id && (
+                          <div className="fade-up ml-[15px] mt-1.5 space-y-[3px] border-l border-line/70 py-0.5 pl-2 pr-0.5" onContextMenu={(e) => openMenu(e, { kind: "space" })}>
+                            <SortableContext items={normalNodes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+                              {normalNodes.map((n) => (n.kind === "request" ? <RequestRow key={n.id} node={n} /> : <FolderRow key={n.id} node={n} />))}
+                            </SortableContext>
+                            {normalNodes.length === 0 && <div className="rounded-md border border-dashed border-line2/60 px-2 py-2 text-[10.5px] font-semibold leading-relaxed text-dim">Пока пусто. Добавьте запрос или папку.</div>}
+                            {trashFolder && <TrashFolderRow node={trashFolder} />}
+                            <div className="flex gap-1 pt-1" onContextMenu={(e) => e.stopPropagation()}>
+                              <button onClick={() => onAddRequest(focusedFolder)}
+                                title={focusedFolder ? `Добавить в «${nodeById(tree, focusedFolder)?.name}»` : "Добавить в корень набора"}
+                                className="flex items-center gap-1 rounded-md border border-line bg-raised/60 px-2 py-1 text-[10.5px] font-extrabold text-mist transition-all duration-150 hover:border-teal/50 hover:text-teal active:scale-95">
+                                <Zap size={10} /> Запрос
+                              </button>
+                              <button onClick={() => openCreateFolder(focusedFolder)}
+                                className="flex items-center gap-1 rounded-md border border-line bg-raised/60 px-2 py-1 text-[10.5px] font-extrabold text-mist transition-all duration-150 hover:border-amber/50 hover:text-amber active:scale-95">
+                                <FolderPlus size={10} /> Папка
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </CollectionItem>
-                  ))}
-                </div>
-              </SortableContext>
+                        )}
+                      </CollectionItem>
+                    ))}
+                  </div>
+                </SortableContext>
+              )}
 
               {showDeleted && deleted.length > 0 && (
                 <div className="fade-up mt-2.5">
@@ -542,8 +577,17 @@ export default function CollectionPanel(props: {
               )}
             </TreeContext.Provider>
 
-            <StandsPanel cols={visible} statuses={urlStatuses} auths={authChecks} updatedAt={standsUpdatedAt}
-              onCheckUrl={onCheckUrl} onRefresh={onRefreshStands} onOpenCard={(id) => setCardState({ mode: "edit", id })} />
+            {visible.length > 0 && (
+              <StandsPanel cols={visible} statuses={urlStatuses} auths={authChecks} updatedAt={standsUpdatedAt}
+                onCheckUrl={onCheckUrl} onRefresh={onRefreshStands} onOpenCard={(id) => setCardState({ mode: "edit", id })} />
+            )}
+
+            {collections.length > 0 && (
+              <button onClick={() => setConfirmPurgeAll(true)}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-raised/40 px-2.5 py-2 text-[10.5px] font-extrabold text-dim transition-all duration-150 hover:border-coral/40 hover:bg-coral/10 hover:text-coral active:scale-[0.98]">
+                <Trash2 size={11} />Удалить все коллекции
+              </button>
+            )}
 
             <DragOverlay dropAnimation={null}>
               {dragInfo && (
@@ -555,10 +599,6 @@ export default function CollectionPanel(props: {
                 </div>
               )}
             </DragOverlay>
-
-            <div className="mt-2.5 rounded-md bg-raised/50 px-2.5 py-2 text-[10px] font-semibold leading-relaxed text-dim">
-              Клик по папке — фокус и фильтр тестов; разворачивание — шевроном. ПКМ — меню. Перетаскивание меняет порядок и вкладывает запросы в папки.
-            </div>
           </div>
         </div>
       </DndContext>
@@ -570,6 +610,7 @@ export default function CollectionPanel(props: {
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={buildItems()} onAction={act} onClose={() => setMenu(null)} />}
 
+      {/* удаление одного объекта */}
       {purge && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-deep/70 p-4 backdrop-blur-[3px]" onMouseDown={(e) => { if (e.target === e.currentTarget) setPurge(null); }}>
           <div className="toast-in w-full max-w-[400px] rounded-2xl border border-coral/40 bg-panel p-5 shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
@@ -586,6 +627,28 @@ export default function CollectionPanel(props: {
               <button onClick={() => setPurge(null)} className="rounded-lg border border-line bg-raised px-4 py-2 text-[12.5px] font-extrabold text-mist transition-all hover:border-line2 hover:text-fog active:scale-95">Нет</button>
               <button onClick={() => { const p = purge; setPurge(null); if (p.kind === "collection") onPurgeCollection(p.id); else onPurgeNode(p.id); }}
                 className="rounded-lg bg-coral px-4 py-2 text-[12.5px] font-extrabold text-[#2b0f0b] transition-all hover:brightness-110 active:scale-95">Да, удалить</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* удаление всех коллекций */}
+      {confirmPurgeAll && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-deep/70 p-4 backdrop-blur-[3px]" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmPurgeAll(false); }}>
+          <div className="toast-in w-full max-w-[420px] rounded-2xl border border-coral/40 bg-panel p-5 shadow-[0_30px_90px_rgba(0,0,0,0.6)]">
+            <div className="flex items-start gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-coral/15 text-coral"><AlertTriangle size={16} /></span>
+              <div>
+                <div className="font-display text-[14px] font-bold text-fog">Удалить все коллекции?</div>
+                <p className="mt-1 text-[12px] font-semibold leading-relaxed text-mist">
+                  Будут безвозвратно удалены все {collections.length} коллекций вместе со сценариями и настройками. Отменить это нельзя.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setConfirmPurgeAll(false)} className="rounded-lg border border-line bg-raised px-4 py-2 text-[12.5px] font-extrabold text-mist transition-all hover:border-line2 hover:text-fog active:scale-95">Отмена</button>
+              <button onClick={() => { setConfirmPurgeAll(false); onPurgeAll(); }}
+                className="rounded-lg bg-coral px-4 py-2 text-[12.5px] font-extrabold text-[#2b0f0b] transition-all hover:brightness-110 active:scale-95">Да, удалить всё</button>
             </div>
           </div>
         </div>

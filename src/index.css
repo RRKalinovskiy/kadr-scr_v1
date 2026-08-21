@@ -38,10 +38,19 @@ body,
 .stage-bg {
   background-color: #0b1518;
   background-image:
-    radial-gradient(900px 480px at 12% -6%, rgba(255, 180, 84, 0.07), transparent 62%),
-    radial-gradient(820px 520px at 96% 104%, rgba(79, 224, 196, 0.055), transparent 60%),
-    radial-gradient(rgba(233, 244, 243, 0.045) 1px, transparent 1.4px);
-  background-size: auto, auto, 22px 22px;
+    radial-gradient(1000px 520px at 10% -8%, rgba(255, 180, 84, 0.075), transparent 60%),
+    radial-gradient(900px 560px at 98% 108%, rgba(79, 224, 196, 0.06), transparent 58%),
+    radial-gradient(rgba(233, 244, 243, 0.04) 1px, transparent 1.4px);
+  background-size: auto, auto, 24px 24px;
+}
+
+/* мягкое свечение фокуса для интерактивных элементов */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(79, 224, 196, 0.5);
+  outline-offset: 1px;
 }
 
 .scroll-thin::-webkit-scrollbar { width: 9px; height: 9px; }
