@@ -23,9 +23,6 @@ npm run build   # сборка → dist/ (один самодостаточны�
 | -------------- | ----------------------- | ------------------------------------------------- |
 | **reg.ru «Сайт из Git»** | `.github/workflows/deploy-regru.yml` | push → подключите reg.ru к ветке **`deploy`** |
 | **reg.ru / FTP** | тот же workflow          | Секреты FTP в GitHub → push → загрузка по FTP     |
-| **Netlify**    | `netlify.toml`          | Import an existing project → выбрать репозиторий   |
-| **Vercel**     | `vercel.json`           | Add New → Project → импорт репозитория             |
-| **GitHub Pages** | `.github/workflows/deploy.yml` | Settings → Pages → Source: «GitHub Actions» |
 
 Каждый `git push` автоматически пересобирает сайт и обновляет ветку `deploy`
 (а при настроенном FTP — ещё и грузит его на хостинг).
@@ -36,28 +33,26 @@ npm run build   # сборка → dist/ (один самодостаточны�
 
 ## Подключение БД
 
-Два варианта (приоритет у Supabase):
+Режим выбирается автоматически (приоритет сверху вниз):
 
-- **БД на reg.ru (MySQL + PHP-API)** — recommended для вашего хостинга.
-  Режим `VITE_BACKEND=regapi` (в workflow уже по умолчанию). Инструкция:
-  создать БД в reg.ru → применить `mysql/schema.sql` → заполнить
-  `api/config.php` → push. Подробнее в [`DEPLOY.md`](./DEPLOY.md).
-- **Supabase (облако)** — шаги ниже.
+1. **БД на reg.ru (MySQL + PHP-API)** — рекомендуется для вашего хостинга.
+   Включается `VITE_BACKEND=regapi` (в workflow уже по умолчанию и имеет
+   приоритет). Инструкция: создать БД в reg.ru → применить `mysql/schema.sql`
+   в phpMyAdmin → заполнить `api/config.php` → push. Подробнее в
+   [`DEPLOY.md`](./DEPLOY.md).
+2. **Supabase (облако)** — если заданы `VITE_SUPABASE_URL` /
+   `VITE_SUPABASE_ANON_KEY` (и не задан `VITE_BACKEND=regapi`).
+3. **Локально (localStorage)** — если не настроено ничего; работает из коробки.
 
-### Подключение облачной БД (Supabase)
-
-1. Создайте проект на [supabase.com](https://supabase.com).
-2. Примените схему: SQL Editor → вставить `supabase/migrations/001_init.sql` → Run.
-3. Скопируйте `.env.example` в `.env.production` и впишите ключи
-   (Settings → API: Project URL и anon key). Закоммитьте `.env.production`.
-4. Перезапустите деплой (push или Actions → Run workflow).
-
-Если `.env.production` нет — сайт работает в локальном режиме (localStorage).
-Подробнее — в [`DEPLOY.md`](./DEPLOY.md).
+> URL Supabase вписывайте **без** суффикса `/rest/v1` (только
+> `https://xxxx.supabase.co`) — иначе получите ошибку 404. Код дополнительно
+> нормализует URL, но лучше указать его сразу верно.
 
 ## Структура
 
 - `src/App.tsx` — оркестратор: сессия, рабочие области, страницы
-- `src/backend/` — сервисный слой (local / Supabase), аутентификация, схемы
+- `src/backend/` — сервисный слой (local / regapi / Supabase), аутентификация
 - `src/components/` — панели, карточки, редактор шагов, экран входа
-- `supabase/migrations/` — SQL-схема БД (коммитится в git)
+- `api/` — PHP-API для БД на reg.ru (раскладывается при сборке)
+- `mysql/schema.sql` — SQL-схема для phpMyAdmin
+- `supabase/migrations/` — SQL-схема Supabase (альтернатива)
