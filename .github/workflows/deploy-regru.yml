@@ -4,23 +4,33 @@
 # При каждом пуше в main/master GitHub Actions:
 #   1) собирает проект (npm run build → единый dist/index.html);
 #   2) подключает ключи БД (если заданы);
-#   3) загружает содержимое dist/ на хостинг reg.ru по FTP
-#      в папку сайта /www/kadr-scr.ru/.
+#   3) публикует содержимое dist/ в отдельную ветку `deploy`
+#      (для reg.ru «Сайт из Git» — подключайте именно её, НЕ main!);
+#   4) (опционально) загружает dist/ на reg.ru по FTP, если заданы
+#      FTP-секреты.
 #
-# НАСТРОЙКА (один раз):
-#   GitHub → репозиторий → Settings → Secrets and variables → Actions
-#   → New repository secret. Создайте секреты:
+# ПОЧЕМУ ВЕТКА deploy: reg.ru «Сайт из Git» выкладывает корень той ветки,
+# к которой подключён. В main лежит исходный код (со src/main.tsx) — отсюда
+# ошибка "module script MIME type". В ветке deploy лежит ТОЛЬКО сборка
+# (один index.html), поэтому подключение reg.ru к ветке deploy работает всегда.
 #
-#     FTP_SERVER      server290.hosting.reg.ru
-#                     (или FTP-адрес из панели reg.ru: «FTP» → данные доступа)
-#     FTP_USERNAME    логин FTP (в reg.ru обычно вида kadr-scr.ru или uXXXXXX)
-#     FTP_PASSWORD    пароль FTP
-#     FTP_TARGET_DIR  /www/kadr-scr.ru/      (ОБЯЗАТЕЛЬНО со слешем на конце!)
+# НАСТРОЙКА (один раз) — выберите ОДИН из двух путей:
 #
-#   Ключи БД (опционально, чтобы сайт работал с облачной БД Supabase):
+#   ПУТЬ A: reg.ru «Сайт из Git» (проще, без FTP-секретов)
+#     В панели reg.ru подключите репозиторий к ветке `deploy`.
+#     Ничего больше настраивать не нужно — workflow сам её обновляет.
+#
+#   ПУТЬ B: FTP через GitHub Actions
+#     GitHub → репозиторий → Settings → Secrets and variables → Actions
+#     → New repository secret. Создайте секреты:
+#       FTP_SERVER      server290.hosting.reg.ru
+#       FTP_USERNAME    логин FTP (вида kadr-scr.ru или uXXXXXX)
+#       FTP_PASSWORD    пароль FTP
+#       FTP_TARGET_DIR  /www/kadr-scr.ru/   (ОБЯЗАТЕЛЬНО со слешем!)
+#
+#   Ключи БД (опционально, для облачной БД Supabase):
 #     VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
-#   Если они не заданы и нет .env.production — сайт соберётся в локальном
-#   режиме (данные в localStorage браузера) и всё равно будет работать.
+#   Если не заданы — сайт работает в локальном режиме (localStorage).
 # ============================================================
 
 name: Deploy to reg.ru (kadr-scr.ru)
@@ -29,6 +39,9 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-and-upload:
@@ -46,7 +59,6 @@ jobs:
         run: npm install
 
       # Подключение БД: секреты GitHub имеют приоритет над .env.production.
-      # Если не задано ничего — локальный режим (localStorage).
       - name: Apply Supabase config
         run: |
           if [ -n "$SB_URL" ]; then
@@ -64,14 +76,26 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Загрузка собранного сайта на reg.ru по FTP.
-      # local-dir  — что загружаем (папка dist со сборкой);
-      # server-dir — куда на хостинге (папка сайта).
-      # dangerous-clean-slate: полностью очищает папку сайта перед загрузкой,
-      #   чтобы на сервере не оставались исходники (/src/) и старые ассеты —
-      #   именно они вызывали ошибку "module script MIME type".
-      #   Безопасно, т.к. весь сайт — это один файл dist/index.html.
+      # ----------------------------------------------------------
+      # ПУТЬ A: публикуем ТОЛЬКО сборку в ветку `deploy`.
+      # В reg.ru «Сайт из Git» подключайте репозиторий к ветке deploy.
+      # Ветка содержит исключительно содержимое dist/ (один index.html).
+      # ----------------------------------------------------------
+      - name: Publish dist to branch `deploy`
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: deploy
+          force_orphan: true
+
+      # ----------------------------------------------------------
+      # ПУТЬ B: загрузка по FTP (работает, только если заданы секреты).
+      # dangerous-clean-slate: очищает папку сайта перед загрузкой,
+      # чтобы не оставались исходники (/src/).
+      # ----------------------------------------------------------
       - name: Upload to reg.ru via FTP (с очисткой папки)
+        if: ${{ secrets.FTP_SERVER != '' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
