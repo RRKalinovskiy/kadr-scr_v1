@@ -1,0 +1,19 @@
+# ============================================================
+# Netlify: автодеплой при пуше в Git.
+# Достаточно подключить репозиторий (Add new site → Import an
+# existing project) — остальное Netlify подхватит отсюда.
+# ============================================================
+
+[build]
+  # Команда сборки и папка, которую Netlify публикует как сайт.
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA: любой маршрут отдаёт единый index.html (single-file сборка).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
