@@ -106,11 +106,17 @@ jobs:
 
       # ----------------------------------------------------------
       # ПУТЬ B: загрузка по FTP (работает, только если заданы секреты).
-      # dangerous-clean-slate: очищает папку сайта перед загрузкой,
-      # чтобы не оставались исходники (/src/).
+      # secrets недоступны в if: шага, поэтому наличие FTP-секретов
+      # проверяет промежуточный шаг и передаёт результат в output.
       # ----------------------------------------------------------
+      - name: Detect FTP secrets
+        id: ftp
+        run: echo "enabled=${FTP_SERVER:+true}" >> "$GITHUB_OUTPUT"
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+
       - name: Upload to reg.ru via FTP (с очисткой папки)
-        if: ${{ secrets.FTP_SERVER != '' }}
+        if: steps.ftp.outputs.enabled == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
