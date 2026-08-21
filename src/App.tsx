@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, Layers, Pencil, Sparkles, Tags, Trash2, X, XCircle } from "lucide-react";
+import { BarChart3, Camera, ListChecks } from "lucide-react";
 import Toolbar from "./components/Toolbar";
 import CollectionPanel from "./components/CollectionPanel";
 import TestTable from "./components/TestTable";
@@ -8,6 +9,8 @@ import TestBuilder from "./components/TestBuilder";
 import DataDrawer from "./components/DataDrawer";
 import NewTestModal, { type NewTestData } from "./components/NewTestModal";
 import ContextMenu, { type MenuItem } from "./components/ContextMenu";
+import ShotTestsView from "./components/ShotTestsView";
+import StatsView from "./components/StatsView";
 import { autoTagColor } from "./components/TagPicker";
 import type { AuthCheckState, AutoTest, Collection, CollectionDraft, CookieJarItem, CookieStore, FolderNode, LastBuild, TestStep, ToastKind, TreeNode } from "./types";
 import { ROOT_SUITE, uid, fmtTime } from "./types";
@@ -75,6 +78,7 @@ export default function App() {
   const [dataOpen, setDataOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [loggedOut, setLoggedOut] = useState(false);
+  const [mainTab, setMainTab] = useState<"tests" | "shots" | "stats">("tests");
 
   const [urlStatuses, setUrlStatuses] = useState<Record<string, UrlStateWrap>>({});
   const [standsUpdatedAt, setStandsUpdatedAt] = useState<number | null>(null);
@@ -704,20 +708,50 @@ export default function App() {
           authChecks={authChecks} onCheckAuth={(id, draft) => { const c = collections.find((x) => x.id === id); if (c) void runAuthCheck(id, { ...c, ...draft }); }}
           cookieStore={cookieStore} />
 
-        <main className="stage-bg relative min-w-0 flex-1">
-          {col ? (
-            <TestTable
-              col={col} people={PEOPLE} selectedId={selectedId} flashId={flashId}
-              onSelect={selectTest}
-              onCtxMenu={(e, t) => { e.preventDefault(); e.stopPropagation(); setTestMenu({ x: e.clientX, y: e.clientY, testId: t.id }); }}
-              onRun={(ids) => void startBuild(activeId, ids)}
-              onDelete={deleteTests} onSetEnabled={setEnabled} onToggleEnabled={toggleEnabled}
-              onAdd={() => { setPrefillSuite(ROOT_SUITE); setModalOpen(true); }}
-              tagColors={tagColors} scopedTestIds={scopedTestIds} scopeName={scopeName}
-              onClearScope={() => setFilterCmd(null)} />
-          ) : (
-            <EmptyWorkspace />
-          )}
+        <main className="relative flex min-w-0 flex-1 flex-col">
+          {/* вкладки рабочей области */}
+          <div className="flex shrink-0 items-end gap-1 border-b border-line bg-panel/70 px-4 backdrop-blur-sm">
+            {([
+              { id: "tests" as const, label: "Тесты", Icon: ListChecks, needCol: true },
+              { id: "shots" as const, label: "Скриншот тесты", Icon: Camera, needCol: false },
+              { id: "stats" as const, label: "Статистика", Icon: BarChart3, needCol: false },
+            ]).filter((t) => !t.needCol || !!col).map((t) => {
+              const active = mainTab === t.id;
+              return (
+                <button key={t.id} onClick={() => setMainTab(t.id)}
+                  className={`relative -mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[12px] font-extrabold transition-all duration-150 ${
+                    active ? "border-amber text-fog" : "border-transparent text-dim hover:text-mist"}`}>
+                  <t.Icon size={14} className={active ? "text-amber" : ""} />
+                  {t.label}
+                  {active && <span className="absolute inset-x-3 -bottom-[2px] h-[2px] rounded-full bg-amber shadow-[0_0_8px_rgba(255,180,84,0.6)]" />}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="stage-bg min-h-0 flex-1">
+            {mainTab === "tests" && (col ? (
+              <TestTable
+                col={col} people={PEOPLE} selectedId={selectedId} flashId={flashId}
+                onSelect={selectTest}
+                onCtxMenu={(e, t) => { e.preventDefault(); e.stopPropagation(); setTestMenu({ x: e.clientX, y: e.clientY, testId: t.id }); }}
+                onRun={(ids) => void startBuild(activeId, ids)}
+                onDelete={deleteTests} onSetEnabled={setEnabled} onToggleEnabled={toggleEnabled}
+                onAdd={() => { setPrefillSuite(ROOT_SUITE); setModalOpen(true); }}
+                tagColors={tagColors} scopedTestIds={scopedTestIds} scopeName={scopeName}
+                onClearScope={() => setFilterCmd(null)} />
+            ) : (
+              <EmptyWorkspace />
+            ))}
+
+            {mainTab === "shots" && (
+              <ShotTestsView collections={collections} people={PEOPLE}
+                onRun={(colId, testId) => void startBuild(colId, [testId])}
+                onOpen={(colId, testId) => { setActiveId(colId); selectTest(testId); setMainTab("tests"); }} />
+            )}
+
+            {mainTab === "stats" && <StatsView collections={collections} />}
+          </div>
         </main>
 
         {col && selected && (
