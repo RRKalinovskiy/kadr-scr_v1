@@ -34,7 +34,17 @@ npm run build   # сборка → dist/ (один самодостаточны�
 > `main`. В `main` лежит исходный код, в `deploy` — только сборка. Подробнее —
 > в [`DEPLOY.md`](./DEPLOY.md).
 
-## Подключение облачной БД (Supabase)
+## Подключение БД
+
+Два варианта (приоритет у Supabase):
+
+- **БД на reg.ru (MySQL + PHP-API)** — recommended для вашего хостинга.
+  Режим `VITE_BACKEND=regapi` (в workflow уже по умолчанию). Инструкция:
+  создать БД в reg.ru → применить `mysql/schema.sql` → заполнить
+  `api/config.php` → push. Подробнее в [`DEPLOY.md`](./DEPLOY.md).
+- **Supabase (облако)** — шаги ниже.
+
+### Подключение облачной БД (Supabase)
 
 1. Создайте проект на [supabase.com](https://supabase.com).
 2. Примените схему: SQL Editor → вставить `supabase/migrations/001_init.sql` → Run.

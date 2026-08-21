@@ -75,6 +75,20 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Режим сервисного слоя для сборки под reg.ru:
+          #   regapi — БД MySQL + PHP-API на хостинге (папка api/).
+          # Если заданы секреты Supabase — приложение выберет Supabase
+          # (он имеет приоритет). Переопределить можно секретом VITE_BACKEND.
+          VITE_BACKEND: ${{ secrets.VITE_BACKEND || 'regapi' }}
+
+      # PHP-API (папка api/) должен попасть на сервер вместе со сборкой,
+      # иначе фронтенд не найдёт эндпоинты /api/*.php.
+      - name: Bundle PHP API into dist
+        run: |
+          mkdir -p dist/api
+          cp -r api/. dist/api/
+          echo "→ api/ добавлен в dist/api/"
 
       # ----------------------------------------------------------
       # ПУТЬ A: публикуем ТОЛЬКО сборку в ветку `deploy`.

@@ -210,7 +210,7 @@ export function saveState(s: PersistedState) {
 /* ---------- per-account хранение (привязка тестов к аккаунту) ---------- */
 
 import { db } from "./backend/db";
-import { isSupabase, supabaseBackend } from "./backend/supabase";
+import { backend } from "./backend";
 
 /** Сид-состояние для нового рабочего места */
 function seedState(): PersistedState {
@@ -240,20 +240,20 @@ function normalize(p: PersistedState): PersistedState {
 }
 
 /**
- * При старте (Supabase-режим) подтягивает состояние рабочего места из облака в
+ * При старте (Supabase / regapi) подтягивает состояние рабочего места из БД в
  * локальный кеш, чтобы синхронная загрузка (loadStateFor) увидела актуальные
  * данные, а не пустые сиды. В локальном режиме — ничего не делает.
  * Вызывать один раз после восстановления сессии, до первого рендера workspace.
  */
 export async function hydrateState(accountId: string): Promise<void> {
-  if (!isSupabase()) return;
+  if (backend.mode === "local") return;
   try {
-    const cloud = await supabaseBackend.loadState<PersistedState>(accountId);
+    const cloud = await backend.loadState<PersistedState>(accountId);
     if (cloud && Array.isArray(cloud.collections) && cloud.collections.length) {
       db.saveAccountState(accountId, cloud);
     }
   } catch {
-    /* нет связи с облаком — работаем с локальным кешем */
+    /* нет связи с БД — работаем с локальным кешем */
   }
 }
 
@@ -274,9 +274,9 @@ export function loadStateFor(accountId: string): PersistedState {
   return fresh;
 }
 
-/** Сохраняет состояние аккаунта: локально + (в Supabase-режиме) в облако. */
+/** Сохраняет состояние аккаунта: локально + (в Supabase/regapi) в БД. */
 export function saveStateFor(accountId: string, s: PersistedState) {
   db.saveAccountState(accountId, s);
-  if (isSupabase()) void supabaseBackend.saveState(accountId, s);
+  if (backend.mode !== "local") void backend.saveState(accountId, s);
 }
 
