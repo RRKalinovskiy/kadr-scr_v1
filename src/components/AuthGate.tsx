@@ -19,7 +19,8 @@ export default function AuthGate({ onAuthed }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isSupa = backend.mode === "supabase";
+  const isSupa = backend.mode !== "local";
+  const dbLabel = backend.mode === "supabase" ? "Supabase" : "MySQL на reg.ru";
 
   const submit = async () => {
     setError(null);
@@ -142,7 +143,7 @@ export default function AuthGate({ onAuthed }: Props) {
             isSupa ? "border-teal/40 bg-teal/[0.07] text-teal" : "border-line bg-panel/60 text-dim"}`}>
             {isSupa ? <CheckCircle2 size={13} className="shrink-0" /> : <Lock size={12} className="shrink-0" />}
             {isSupa
-              ? "Облачная БД подключена · данные синхронизируются (Supabase)"
+              ? `БД подключена · данные синхронизируются (${dbLabel})`
               : "Локальный режим · данные хранятся в этом браузере"}
           </div>
 
@@ -206,8 +207,8 @@ export default function AuthGate({ onAuthed }: Props) {
           <div className="mt-4 flex items-center justify-center gap-1.5 text-center text-[10px] font-semibold text-dim">
             <Sparkles size={11} className="text-teal" />
             {isSupa
-              ? "Подключено к Supabase: данные и пользователи хранятся в облачной БД"
-              : "Локальный режим: аккаунты и тесты хранятся в этом браузере. Добавьте ключи Supabase, чтобы синхронизировать."}
+              ? `Подключено к ${dbLabel}: данные и пользователи хранятся в БД`
+              : "Локальный режим: аккаунты и тесты хранятся в этом браузере. Подключите БД, чтобы синхронизировать."}
           </div>
         </div>
       </div>

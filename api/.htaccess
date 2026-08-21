@@ -1,0 +1,11 @@
+# Запрет прямого доступа к служебным файлам (реквизиты БД и помощники).
+# Эндпоинты (register/login/state/...) остаются доступны.
+<Files "config.php">
+  Require all denied
+</Files>
+<Files "db.php">
+  Require all denied
+</Files>
+<Files "common.php">
+  Require all denied
+</Files>

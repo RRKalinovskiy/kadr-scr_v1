@@ -41,11 +41,17 @@ export default function Toolbar({ buildNo, buildActive, progress, savedAt, canRu
       <div className="ml-auto flex items-center gap-2.5">
         {/* индикатор режима хранилища */}
         <span
-          title={backend.mode === "supabase" ? "Данные синхронизируются с облачной БД (Supabase)" : "Данные хранятся локально в браузере"}
+          title={
+            backend.mode === "supabase"
+              ? "Данные синхронизируются с облачной БД (Supabase)"
+              : backend.mode === "regapi"
+                ? "Данные в MySQL на хостинге (PHP-API)"
+                : "Данные хранятся локально в браузере"
+          }
           className={`hidden items-center gap-1.5 rounded-md border px-2 py-1 text-[9.5px] font-extrabold uppercase tracking-wide md:flex ${
-            backend.mode === "supabase" ? "border-teal/40 bg-teal/[0.08] text-teal" : "border-line bg-raised/60 text-dim"}`}>
+            backend.mode === "local" ? "border-line bg-raised/60 text-dim" : "border-teal/40 bg-teal/[0.08] text-teal"}`}>
           <Database size={11} />
-          {backend.mode === "supabase" ? "Облако" : "Локально"}
+          {backend.mode === "supabase" ? "Облако" : backend.mode === "regapi" ? "БД reg.ru" : "Локально"}
         </span>
         {savedAt && <span className="hidden text-[11px] font-semibold text-dim lg:block">сохранено в {fmtTime(savedAt)}</span>}
         <Link to="/stats" title="Статистика — отдельная страница"
