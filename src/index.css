@@ -1,1 +1,128 @@
 @import "tailwindcss";
+
+@theme {
+  --font-display: "Unbounded", "Manrope", sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  --color-deep: #0a1416;
+  --color-panel: #0e1b1e;
+  --color-raised: #132327;
+  --color-hover: #182b30;
+  --color-line: #1d3237;
+  --color-line2: #2b454d;
+  --color-fog: #e9f4f3;
+  --color-mist: #90a7ac;
+  --color-dim: #5f777d;
+  --color-amber: #ffb454;
+  --color-amber2: #ffc873;
+  --color-teal: #4fe0c4;
+  --color-coral: #ff7a68;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-deep);
+  color: var(--color-fog);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(255, 180, 84, 0.28);
+}
+
+.stage-bg {
+  background-color: #0b1518;
+  background-image:
+    radial-gradient(900px 480px at 12% -6%, rgba(255, 180, 84, 0.07), transparent 62%),
+    radial-gradient(820px 520px at 96% 104%, rgba(79, 224, 196, 0.055), transparent 60%),
+    radial-gradient(rgba(233, 244, 243, 0.045) 1px, transparent 1.4px);
+  background-size: auto, auto, 22px 22px;
+}
+
+.scroll-thin::-webkit-scrollbar { width: 9px; height: 9px; }
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #1d3237;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: #2b454d;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.scroll-thin::-webkit-scrollbar-corner { background: transparent; }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.toast-in { animation: toastIn 0.28s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up { animation: fadeUp 0.4s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
+
+@keyframes menuIn {
+  from { opacity: 0; transform: scale(0.94) translateY(-5px); }
+  to { opacity: 1; transform: none; }
+}
+.menu-in { animation: menuIn 0.14s cubic-bezier(0.22, 0.9, 0.3, 1) both; transform-origin: top left; }
+
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 224, 196, 0.5); }
+  60% { box-shadow: 0 0 0 5px rgba(79, 224, 196, 0); }
+}
+.pulse-dot { animation: pulseDot 2.2s ease-out infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }
+
+@keyframes rowFlash {
+  0% { background-color: rgba(79, 224, 196, 0.22); }
+  100% { background-color: transparent; }
+}
+.row-flash { animation: rowFlash 1.4s ease-out both; }
+
+@keyframes drawerIn {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.drawer-in { animation: drawerIn 0.26s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
+
+@keyframes stepPing {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+}
+.step-ping { animation: stepPing 0.7s ease-out both; }
+
+@keyframes debugRipple {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.7); opacity: 0; }
+}
+.debug-ripple { animation: debugRipple 0.55s ease-out both; }
+
+@keyframes areaScan {
+  0%, 100% { opacity: 0.5; box-shadow: 0 0 0 0 rgba(255, 180, 84, 0); }
+  50% { opacity: 1; box-shadow: 0 0 18px 2px rgba(255, 180, 84, 0.35); }
+}
+.area-scan { animation: areaScan 0.7s ease-in-out infinite; }
+
+@keyframes cursorGlow {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(79, 224, 196, 0.95)); }
+  50% { filter: drop-shadow(0 0 10px rgba(79, 224, 196, 0.45)); }
+}
+.debug-cursor { animation: cursorGlow 0.8s ease-in-out infinite; }
+
+@keyframes logIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.log-in { animation: logIn 0.25s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
