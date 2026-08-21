@@ -70,6 +70,9 @@ export const regapiBackend = {
       const d = await req<{ ok: boolean; user: PublicUser; session: ApiSession }>("register.php", {
         body: { name, email, password },
       });
+      if (!d.session || !d.user) {
+        throw new Error("Сервер вернул неполный ответ — проверьте, что PHP-API и база данных настроены");
+      }
       storeToken(d.session.token);
       return { ok: true as const, user: d.user, session: toDbSession(d.session) };
     } catch (e) {
@@ -82,6 +85,9 @@ export const regapiBackend = {
       const d = await req<{ ok: boolean; user: PublicUser; session: ApiSession }>("login.php", {
         body: { email, password },
       });
+      if (!d.session || !d.user) {
+        throw new Error("Сервер вернул неполный ответ — проверьте, что PHP-API и база данных настроены");
+      }
       storeToken(d.session.token);
       return { ok: true as const, user: d.user, session: toDbSession(d.session) };
     } catch (e) {
@@ -94,6 +100,10 @@ export const regapiBackend = {
     if (!token) return null;
     try {
       const d = await req<{ ok: boolean; user: PublicUser; session: ApiSession }>("restore.php", { token });
+      if (!d.session || !d.user) {
+        storeToken(null);
+        return null;
+      }
       return { user: d.user, session: toDbSession(d.session) };
     } catch {
       storeToken(null);
