@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Info, Pencil, Tags, Trash2, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Layers, Pencil, Sparkles, Tags, Trash2, X, XCircle } from "lucide-react";
 import Toolbar from "./components/Toolbar";
 import CollectionPanel from "./components/CollectionPanel";
 import TestTable from "./components/TestTable";
@@ -19,6 +19,29 @@ import { capturePage, endCaptureSession, startCaptureSession, type CaptureSessio
 
 interface Toast { id: string; kind: ToastKind; title: string; sub?: string }
 type FilterCmd = { kind: "failing"; folderId?: string; at: number } | null;
+
+/** Дружелюбная заглушка, когда нет ни одной коллекции */
+function EmptyWorkspace() {
+  return (
+    <div className="grid h-full place-items-center p-8">
+      <div className="fade-up w-full max-w-[400px] rounded-2xl border border-line bg-panel/80 p-8 text-center shadow-[0_30px_80px_rgba(0,0,0,0.4)]">
+        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-amber/20 to-teal/15 shadow-[inset_0_0_0_1px_rgba(255,180,84,0.25)]">
+          <Layers size={28} className="text-amber" />
+        </div>
+        <div className="font-display text-[17px] font-bold leading-snug text-fog">
+          Пока нет ни одного набора
+        </div>
+        <p className="mx-auto mt-2.5 max-w-[300px] text-[12.5px] font-semibold leading-relaxed text-mist">
+          Создайте первую коллекцию — добавьте адрес стенда и сценарии, и «КАДР» начнёт снимать и сверять кадры за вас.
+        </p>
+        <div className="mt-5 inline-flex items-center gap-2 rounded-lg border border-line bg-raised/60 px-3.5 py-2 text-[11.5px] font-bold text-dim">
+          <Sparkles size={13} className="text-teal" />
+          Нажмите «+» в панели «Наборы сценариев» слева
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const initial = useMemo(() => loadState(), []);
@@ -72,8 +95,8 @@ export default function App() {
     () => collections.find((c) => c.id === activeId && !c.deleted) ?? collections.find((c) => !c.deleted) ?? collections[0],
     [collections, activeId],
   );
-  const selected = col.tests.find((t) => t.id === selectedId) ?? null;
-  const builderTest = col.tests.find((t) => t.id === builderTestId) ?? null;
+  const selected = col ? col.tests.find((t) => t.id === selectedId) ?? null : null;
+  const builderTest = col ? col.tests.find((t) => t.id === builderTestId) ?? null : null;
 
   /* ---------- автосейв ---------- */
   useEffect(() => {
@@ -358,6 +381,12 @@ export default function App() {
     const target = collections.find((c) => c.id === id);
     setCollections((prev) => prev.filter((c) => c.id !== id));
     toast("warning", "Удалено безвозвратно", `Коллекция «${target?.name}»`);
+  };
+  const purgeAllCollections = () => {
+    const n = collections.length;
+    setCollections([]);
+    forceSelect(null);
+    toast("warning", "Все коллекции удалены", `Безвозвратно удалено: ${n}`);
   };
 
   /* ---------- проверка доступности ---------- */
@@ -664,7 +693,7 @@ export default function App() {
           onUpdateNode={updateTreeNode} onDeleteNode={deleteTreeNode}
           onMoveNode={moveNode} onMoveCollection={moveCollection}
           onDeleteCollection={deleteCollection} onRestoreNode={restoreNode} onPurgeNode={purgeNode}
-          onRestoreCollection={restoreCollection} onPurgeCollection={purgeCollection}
+          onRestoreCollection={restoreCollection} onPurgeCollection={purgeCollection} onPurgeAll={purgeAllCollections}
           onSaveCard={(id, patch) => {
             setCollections((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
             toast("success", "Карточка сохранена");
@@ -676,18 +705,22 @@ export default function App() {
           cookieStore={cookieStore} />
 
         <main className="stage-bg relative min-w-0 flex-1">
-          <TestTable
-            col={col} people={PEOPLE} selectedId={selectedId} flashId={flashId}
-            onSelect={selectTest}
-            onCtxMenu={(e, t) => { e.preventDefault(); e.stopPropagation(); setTestMenu({ x: e.clientX, y: e.clientY, testId: t.id }); }}
-            onRun={(ids) => void startBuild(activeId, ids)}
-            onDelete={deleteTests} onSetEnabled={setEnabled} onToggleEnabled={toggleEnabled}
-            onAdd={() => { setPrefillSuite(ROOT_SUITE); setModalOpen(true); }}
-            tagColors={tagColors} scopedTestIds={scopedTestIds} scopeName={scopeName}
-            onClearScope={() => setFilterCmd(null)} />
+          {col ? (
+            <TestTable
+              col={col} people={PEOPLE} selectedId={selectedId} flashId={flashId}
+              onSelect={selectTest}
+              onCtxMenu={(e, t) => { e.preventDefault(); e.stopPropagation(); setTestMenu({ x: e.clientX, y: e.clientY, testId: t.id }); }}
+              onRun={(ids) => void startBuild(activeId, ids)}
+              onDelete={deleteTests} onSetEnabled={setEnabled} onToggleEnabled={toggleEnabled}
+              onAdd={() => { setPrefillSuite(ROOT_SUITE); setModalOpen(true); }}
+              tagColors={tagColors} scopedTestIds={scopedTestIds} scopeName={scopeName}
+              onClearScope={() => setFilterCmd(null)} />
+          ) : (
+            <EmptyWorkspace />
+          )}
         </main>
 
-        {selected && (
+        {col && selected && (
           <div className="relative shrink-0" ref={inspectorRef}>
             <aside className="drawer-in h-full w-[380px] overflow-hidden border-l border-line bg-panel shadow-[-18px_0_50px_rgba(0,0,0,0.28)]">
               <Inspector test={selected} col={col} people={PEOPLE} lastBuild={lastBuild}
@@ -701,13 +734,15 @@ export default function App() {
         )}
       </div>
 
-      {builderTest && (
+      {col && builderTest && (
         <TestBuilder test={builderTest} col={col} onClose={() => setBuilderTestId(null)} onSave={saveTestSteps} />
       )}
 
-      <NewTestModal open={modalOpen} col={col} people={PEOPLE} initialSuite={prefillSuite}
-        tagColors={tagColors} onTagColor={(tag, c) => setTagColors((p) => ({ ...p, [tag]: c }))}
-        onClose={() => { setModalOpen(false); setPrefillSuite(null); }} onCreate={createTest} />
+      {col && (
+        <NewTestModal open={modalOpen} col={col} people={PEOPLE} initialSuite={prefillSuite}
+          tagColors={tagColors} onTagColor={(tag, c) => setTagColors((p) => ({ ...p, [tag]: c }))}
+          onClose={() => { setModalOpen(false); setPrefillSuite(null); }} onCreate={createTest} />
+      )}
 
       <DataDrawer open={dataOpen} account={account} users={PEOPLE} collections={collections}
         cookieStore={cookieStore} onClose={() => setDataOpen(false)} />
