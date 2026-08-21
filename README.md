@@ -21,13 +21,18 @@ npm run build   # сборка → dist/ (один самодостаточны�
 
 | Платформа      | Файл                    | Что делать                                        |
 | -------------- | ----------------------- | ------------------------------------------------- |
-| **reg.ru / FTP** | `.github/workflows/deploy-regru.yml` | Секреты FTP в GitHub → push → загрузка по FTP |
+| **reg.ru «Сайт из Git»** | `.github/workflows/deploy-regru.yml` | push → подключите reg.ru к ветке **`deploy`** |
+| **reg.ru / FTP** | тот же workflow          | Секреты FTP в GitHub → push → загрузка по FTP     |
 | **Netlify**    | `netlify.toml`          | Import an existing project → выбрать репозиторий   |
 | **Vercel**     | `vercel.json`           | Add New → Project → импорт репозитория             |
 | **GitHub Pages** | `.github/workflows/deploy.yml` | Settings → Pages → Source: «GitHub Actions» |
 
-Каждый `git push` автоматически пересобирает и обновляет стенд.
-Подробная инструкция — в [`DEPLOY.md`](./DEPLOY.md).
+Каждый `git push` автоматически пересобирает сайт и обновляет ветку `deploy`
+(а при настроенном FTP — ещё и грузит его на хостинг).
+
+> **Важно для reg.ru:** подключайте «Сайт из Git» к ветке **`deploy`**, а не к
+> `main`. В `main` лежит исходный код, в `deploy` — только сборка. Подробнее —
+> в [`DEPLOY.md`](./DEPLOY.md).
 
 ## Подключение облачной БД (Supabase)
 
