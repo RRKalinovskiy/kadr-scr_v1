@@ -14,8 +14,22 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { PublicUser } from "./auth";
 import type { DbSession } from "./db";
 
-const url = (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SUPABASE_URL;
-const anonKey = (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SUPABASE_ANON_KEY;
+const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+const anonKey = env.VITE_SUPABASE_ANON_KEY;
+
+/**
+ * Нормализуем базовый URL проекта Supabase.
+ *
+ * Частая ошибка — вписать URL с суффиксом `/rest/v1` (его показывает панель в
+ * поле REST API). Клиент сам добавляет `/auth/v1` и `/rest/v1` к базовому URL,
+ * поэтому лишний суффикс даёт битый путь вида `/rest/v1/auth/v1/signup` → 404.
+ * Обрезаем его, чтобы код был устойчив к такой опечатке.
+ */
+function normalizeUrl(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  return raw.trim().replace(/\/(rest\/v1|auth\/v1)\/?$/, "").replace(/\/+$/, "");
+}
+const url = normalizeUrl(env.VITE_SUPABASE_URL);
 
 export const isSupabase = (): boolean => Boolean(url && anonKey);
 

@@ -1,9 +1,10 @@
 /**
  * Единый фасад сервисного слоя.
  *
- * Выбирает реализацию автоматически:
- *  - если заданы VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — реальная БД
- *    Supabase (PostgreSQL + auth), см. backend/supabase.ts и миграцию в git;
+ * Выбирает реализацию автоматически (приоритет сверху вниз):
+ *  - VITE_BACKEND=regapi — БД MySQL + PHP-API на хостинге reg.ru (backend/regapi.ts);
+ *  - VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — облачная БД Supabase
+ *    (PostgreSQL + auth), см. backend/supabase.ts и миграцию в git;
  *  - иначе — локальная эмуляция БД поверх localStorage (backend/db.ts + auth.ts),
  *    которая работает сразу и не требует настройки.
  *
@@ -34,23 +35,13 @@ export interface Backend {
 
 /**
  * Приоритет выбора хранилища:
- *  1. Supabase — если заданы VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY;
- *  2. regapi   — если VITE_BACKEND=regapi (БД MySQL + PHP на хостинге reg.ru);
+ *  1. regapi   — если явно задано VITE_BACKEND=regapi (БД MySQL + PHP на reg.ru).
+ *     Явный выбор режима всегда выигрывает, даже если параллельно заданы
+ *     ключи Supabase (например, остались от предыдущей настройки).
+ *  2. Supabase — если заданы VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY;
  *  3. local    — локальная эмуляция поверх localStorage (работает из коробки).
  */
 function createBackend(): Backend {
-  if (isSupabase()) {
-    return {
-      mode: "supabase",
-      register: (n, e, p) => supabaseBackend.register(n, e, p),
-      login: (e, p) => supabaseBackend.login(e, p),
-      restore: () => supabaseBackend.restore(),
-      logout: () => supabaseBackend.logout(),
-      loadState: (id) => supabaseBackend.loadState(id),
-      saveState: (id, s) => supabaseBackend.saveState(id, s),
-      listUsers: (id) => supabaseBackend.listUsers(id),
-    };
-  }
   if (isRegApi()) {
     return {
       mode: "regapi",
@@ -61,6 +52,18 @@ function createBackend(): Backend {
       loadState: (id) => regapiBackend.loadState(id),
       saveState: (id, s) => regapiBackend.saveState(id, s),
       listUsers: (id) => regapiBackend.listUsers(id),
+    };
+  }
+  if (isSupabase()) {
+    return {
+      mode: "supabase",
+      register: (n, e, p) => supabaseBackend.register(n, e, p),
+      login: (e, p) => supabaseBackend.login(e, p),
+      restore: () => supabaseBackend.restore(),
+      logout: () => supabaseBackend.logout(),
+      loadState: (id) => supabaseBackend.loadState(id),
+      saveState: (id, s) => supabaseBackend.saveState(id, s),
+      listUsers: (id) => supabaseBackend.listUsers(id),
     };
   }
   return {
