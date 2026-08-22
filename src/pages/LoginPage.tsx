@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { backend } from '../backend';
 
-interface LoginPageProps {
-  onLogin: (userData: any) => void;
-}
-
-export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
+export default function LoginPage() {
+  const navigate = useNavigate();
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,9 +11,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // URL вашего API на хостинге
-  // Замените на реальный домен после деплоя
-  const API_URL = '/api.php'; 
+  // Проверяем, есть ли уже активная сессия
+  useEffect(() => {
+    backend.restore().then((result) => {
+      if (result && result.user && result.session) {
+        navigate('/workspace');
+      }
+    });
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,40 +26,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const action = isLoginMode ? 'login' : 'register_team';
-      
-      const payload: any = { email, password };
-      if (!isLoginMode) {
-        payload.teamName = teamName;
-      }
-
-      const response = await fetch(`${API_URL}?action=${action}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Произошла ошибка');
-      }
-
+      let result;
       if (isLoginMode) {
-        // Успешный вход
-        onLogin(data.user);
+        // Вход
+        result = await backend.login(email, password);
       } else {
-        // Успешная регистрация - переключаемся на вход
-        alert('Команда успешно создана! Теперь войдите в систему.');
-        setIsLoginMode(true);
-        setTeamName('');
-        setEmail('');
-        setPassword('');
+        // Регистрация новой команды
+        result = await backend.register(teamName, email, password);
+      }
+
+      if (result && result.user && result.session) {
+        // Успешная авторизация - переходим на страницу workspace
+        navigate('/workspace');
+      } else {
+        throw new Error('Не удалось авторизоваться');
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Произошла ошибка');
     } finally {
       setLoading(false);
     }
