@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS kadr_sessions (
   account_id VARCHAR(64)  NOT NULL,
   created_at BIGINT       NOT NULL,
   expires_at BIGINT       NOT NULL,
-  KEY idx_expires (expires_at)
+  last_activity BIGINT    NOT NULL,
+  KEY idx_expires (expires_at),
+  KEY idx_last_activity (last_activity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS kadr_account_state (
