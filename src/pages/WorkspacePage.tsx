@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Account, AutoTest, Collection, CollectionDraft, CookieStore, LastBuild, Person, RunRecord, TreeNode } from "../types";
 import { ROOT_SUITE, uid } from "../types";
@@ -74,6 +74,7 @@ export default function WorkspacePage() {
     return () => window.clearTimeout(t);
   }, [state, authed]);
 
+  // Показываем заглушку пока нет данных
   if (!authed || !state) {
     return (
       <div className="grid h-screen w-screen place-items-center bg-deep text-fog">
@@ -85,15 +86,43 @@ export default function WorkspacePage() {
   }
 
   const { collections, activeId, buildNo, cookieStore, account, tagColors } = state;
-  const col = collections.find((c) => c.id === activeId && !c.deleted) ?? collections.find((c) => !c.deleted) ?? collections[0];
   
-  // Защита от отсутствия коллекций
-  if (!col) {
+  // Надёжное получение активной коллекции
+  const col = collections.find((c) => c.id === activeId && !c.deleted) 
+    ?? collections.find((c) => !c.deleted) 
+    ?? null;
+  
+  // Если коллекций нет вообще — показываем экран создания
+  if (!col || collections.length === 0) {
     return (
       <div className="grid h-screen w-screen place-items-center bg-deep text-fog">
         <div className="text-center">
-          <div className="font-display text-[18px] font-bold">Нет доступных коллекций</div>
-          <button onClick={() => navigate("/")} className="mt-4 rounded bg-accent px-4 py-2 text-fog hover:brightness-110">
+          <div className="mb-2 text-[28px] font-bold text-fog">Нет коллекций</div>
+          <p className="mb-6 max-w-[320px] text-[13px] font-semibold leading-relaxed text-mist">
+            Создайте первую коллекцию для начала работы с тестами
+          </p>
+          <button 
+            onClick={() => {
+              const newCol: Collection = {
+                id: uid(),
+                name: "Моя коллекция",
+                color: "#ffb454",
+                baseUrl: "",
+                screenUrl: "",
+                browser: "chrome",
+                viewports: ["1440"],
+                threshold: 0.05,
+                delayMs: 1000,
+                baseline: "main",
+                notify: [],
+                auth: { enabled: false },
+                tests: [],
+                tree: ensureTrash([]),
+              };
+              setState((prev) => prev ? { ...prev, collections: [newCol], activeId: newCol.id } : prev);
+            }}
+            className="inline-flex items-center gap-2 rounded-lg bg-amber px-5 py-2.5 text-[13px] font-extrabold text-[#17211d] shadow-[0_2px_12px_rgba(255,180,84,0.3)] transition-all hover:brightness-110 active:scale-95"
+          >
             Создать коллекцию
           </button>
         </div>
@@ -377,13 +406,14 @@ export default function WorkspacePage() {
   };
 
   const handleManualResult = (id: string, r: ManualResult) => {
+    if (!col) return;
     handleSaveTest(id, {
       status: r.status,
       diffPct: r.diffPct,
       durMs: r.durMs,
       lastRun: Date.now(),
       history: [
-        ...(col?.tests.find((t) => t.id === id)?.history ?? []),
+        ...(col.tests.find((t) => t.id === id)?.history ?? []),
         { id: uid(), status: r.status, at: Date.now(), dur: r.durMs, diffPct: r.diffPct, failText: r.failText } as RunRecord,
       ],
     });
@@ -419,9 +449,9 @@ export default function WorkspacePage() {
     setNewTestFor(null);
   };
 
-  const scopedTestIds = folderScope
+  const scopedTestIds = folderScope && col
     ? new Set(
-        col?.tests.filter((t) => {
+        col.tests.filter((t) => {
           if (!t.requestId) return false;
           const node = nodeById(col.tree, t.requestId);
           if (!node) return false;
@@ -431,7 +461,7 @@ export default function WorkspacePage() {
       )
     : null;
 
-  const scopeName = folderScope ? nodeById(col?.tree ?? [], folderScope)?.name ?? null : null;
+  const scopeName = folderScope && col ? nodeById(col.tree, folderScope)?.name ?? null : null;
 
   const handleClearScope = () => {
     setFolderScope(null);
