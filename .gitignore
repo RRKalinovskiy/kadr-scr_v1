@@ -1,23 +1,45 @@
-```
-# Build artifacts
-dist/
-build/
-
-# Environment files
+```php
+# Environment and configuration
 .env
 .env.local
-*.env.*
+.env.*
 
 # Logs
 *.log
 
-# Editor/IDE files
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Cache directories
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Build artifacts
+build/
+dist/
+*.o
+*.obj
+*.so
+*.dll
+*.exe
+
+# Dependencies
+node_modules/
+vendor/
+composer.lock
+
+# IDE specific
 .vscode/
 .idea/
 *.swp
 *.swo
-*.tmp
 
-# Dependencies
-node_modules/
+# OS generated
+.DS_Store
+Thumbs.db
 ```
