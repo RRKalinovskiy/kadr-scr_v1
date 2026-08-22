@@ -1,22 +1,14 @@
 <?php
 /** Общие помощники: JSON-ввод/вывод, сессии, маппинг пользователя. */
 
+require_once __DIR__ . '/common_header.php';
 require_once __DIR__ . '/db.php';
-
-header('Content-Type: application/json; charset=utf-8');
 
 function kadr_body(): array
 {
     $raw  = file_get_contents('php://input');
     $data = json_decode($raw ?: '{}', true);
     return is_array($data) ? $data : [];
-}
-
-function kadr_json($payload, int $code = 200): void
-{
-    http_response_code($code);
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-    exit;
 }
 
 function kadr_token(): ?string

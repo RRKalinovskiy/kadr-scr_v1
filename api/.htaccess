@@ -1,11 +1,7 @@
-# Запрет прямого доступа к служебным файлам (реквизиты БД и помощники).
-# Эндпоинты (register/login/state/...) остаются доступны.
-<Files "config.php">
-  Require all denied
-</Files>
-<Files "db.php">
-  Require all denied
-</Files>
-<Files "common.php">
-  Require all denied
-</Files>
+# Запрет прямого доступа по URL к служебным файлам (конфигурация, подключение,
+# помощники). Эндпоинты (register/login/restore/logout/state/users/ping) остаются
+# доступными — они подключают служебные файлы через require, а не по URL.
+
+<FilesMatch "^(config|db|common|common_header)\.php$">
+    Require all denied
+</FilesMatch>
