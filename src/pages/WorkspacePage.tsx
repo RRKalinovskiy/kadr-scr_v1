@@ -86,6 +86,21 @@ export default function WorkspacePage() {
 
   const { collections, activeId, buildNo, cookieStore, account, tagColors } = state;
   const col = collections.find((c) => c.id === activeId && !c.deleted) ?? collections.find((c) => !c.deleted) ?? collections[0];
+  
+  // Защита от отсутствия коллекций
+  if (!col) {
+    return (
+      <div className="grid h-screen w-screen place-items-center bg-deep text-fog">
+        <div className="text-center">
+          <div className="font-display text-[18px] font-bold">Нет доступных коллекций</div>
+          <button onClick={() => navigate("/")} className="mt-4 rounded bg-accent px-4 py-2 text-fog hover:brightness-110">
+            Создать коллекцию
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
   const people: Person[] = [];
 
   /* ---------- Handlers ---------- */
