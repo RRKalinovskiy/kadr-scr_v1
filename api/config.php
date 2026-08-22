@@ -12,6 +12,6 @@ return [
     'db_host'     => 'localhost',          // на reg.ru почти всегда localhost
     'db_name'     => 'u3617849_default',               // имя созданной базы данных
     'db_user'     => 'u3617849_default',          // пользователь базы
-    'db_pass'     => '1S5Nrmf2tpvU5rlE"',          // пароль пользователя базы
+    'db_pass'     => '1S5Nrmf2tpvU5rlE',          // пароль пользователя базы
     'session_ttl' => 7 * 24 * 3600,        // время жизни сессии, сек (7 дней)
 ];
