@@ -1,20 +1,10 @@
 ```
-# Build artifacts
-dist/
-build/
-*.o
-*.obj
-*.out
+# Compiled and build artifacts
+*.pyc
+__pycache__/
 
 # Dependencies
-node_modules/
-.venv/
-venv/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-target/
-.gradle/
+vendor/
 
 # Logs and temp files
 *.log

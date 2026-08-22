@@ -13,7 +13,24 @@ function kadr_body(): array
 
 function kadr_token(): ?string
 {
+    // Проверяем стандартные заголовки Authorization
     $h = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+    
+    // Если заголовок не найден, пробуем получить токен из заголовка, 
+    // переданного через RewriteRule (на некоторых хостингах Apache сбрасывает Authorization)
+    if (!$h && isset($_SERVER['HTTP_X_AUTHORIZATION'])) {
+        $h = $_SERVER['HTTP_X_AUTHORIZATION'];
+    }
+    
+    // Также проверяем, если токен был передан через POST/GET параметр (резервный вариант)
+    if (!$h) {
+        $raw  = file_get_contents('php://input');
+        $data = json_decode($raw ?: '{}', true);
+        if (is_array($data) && isset($data['token']) && is_string($data['token'])) {
+            return trim($data['token']);
+        }
+    }
+    
     if (preg_match('/^Bearer\s+(.+)$/i', $h, $m)) {
         return trim($m[1]);
     }
