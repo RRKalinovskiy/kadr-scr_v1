@@ -53,13 +53,19 @@ function AppContent() {
   useEffect(() => {
     const restored = backend.restore();
     if (restored && !Array.isArray(restored)) {
-      setAuthed(restored);
+      // Проверяем, что пользователь действительно существует
+      if (restored.user && restored.session) {
+        setAuthed(restored);
+      } else {
+        // Сессия невалидна — очищаем и не устанавливаем authed
+        backend.logout();
+      }
     }
   }, []);
 
   /* Загрузка состояния рабочего места после аутентификации */
   useEffect(() => {
-    if (!authed) return;
+    if (!authed || !authed.user || !authed.user.accountId) return;
     const s = loadStateFor(authed.user.accountId);
     setState({
       collections: s.collections,
@@ -73,7 +79,7 @@ function AppContent() {
 
   /* Автосохранение состояния */
   useEffect(() => {
-    if (!state || !authed) return;
+    if (!state || !authed || !authed.user || !authed.user.accountId) return;
     const t = window.setTimeout(() => {
       saveStateFor(authed.user.accountId, state as unknown as PersistedState);
       setSavedAt(Date.now());
@@ -600,7 +606,7 @@ function StatsWrapper() {
 
   useEffect(() => {
     const restored = backend.restore();
-    if (restored && !Array.isArray(restored)) {
+    if (restored && !Array.isArray(restored) && restored.user && restored.session) {
       setAuthed(restored);
       const s = loadStateFor(restored.user.accountId);
       setState({
@@ -611,6 +617,9 @@ function StatsWrapper() {
         account: s.account,
         tagColors: s.tagColors,
       });
+    } else if (restored) {
+      // Сессия невалидна — очищаем
+      backend.logout();
     }
   }, []);
 

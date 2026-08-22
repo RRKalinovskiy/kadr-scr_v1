@@ -1,7 +1,6 @@
 ```
 # Build artifacts
 dist/
-build/
 *.css
 *.js
 
@@ -13,34 +12,21 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
+
+# Virtual environments
 venv/
 .venv/
-.ENV
-.python-version
-
-# Logs
-*.log
-
-# Environment variables
 .env
 .env.local
-.env.*
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
+
+# Logs
+*.log
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
 ```
