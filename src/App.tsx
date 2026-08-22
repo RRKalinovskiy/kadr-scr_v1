@@ -52,16 +52,25 @@ function AppContent() {
 
   /* Восстановление сессии при старте */
   useEffect(() => {
-    const restored = backend.restore();
-    if (restored && !Array.isArray(restored)) {
-      // Проверяем, что пользователь действительно существует
-      if (restored.user && restored.session) {
-        setAuthed(restored);
-        // Если сессия восстановлена, перенаправляем на рабочую область
-        navigate("/workspace");
-      } else {
-        // Сессия невалидна — очищаем и не устанавливаем authed
-        backend.logout();
+    // Пытаемся восстановить пользователя из localStorage
+    const storedUser = localStorage.getItem("kadr_user");
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        if (user && user.id) {
+          // Создаем фейковую сессию для совместимости с остальным кодом
+          const fakeSession = {
+            id: `session_${user.id}`,
+            user_id: user.id,
+            created_at: new Date().toISOString()
+          };
+          setAuthed({ user: { accountId: String(user.team_id), email: user.email, role: user.role }, session: fakeSession });
+          navigate("/workspace");
+          return;
+        }
+      } catch (e) {
+        console.error("Ошибка восстановления сессии:", e);
+        localStorage.removeItem("kadr_user");
       }
     }
   }, [navigate]);
