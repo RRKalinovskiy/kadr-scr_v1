@@ -326,7 +326,17 @@ export default function CollectionPanel(props: {
   const { collections, activeId, onSelect, folderScope, onSelectFolder, onOpenTest, onFilterFailing, onCreateCollection, onCreateNode, onAddRequest, onUpdateNode, onDeleteNode, onMoveNode, onMoveCollection, onDeleteCollection, onRestoreNode, onPurgeNode, onRestoreCollection, onPurgeCollection, onPurgeAll, onSaveCard, buildActive, onRunAll, urlStatuses, onCheckUrl, onRefreshStands, standsUpdatedAt, authChecks, onCheckAuth, cookieStore } = props;
 
   const col = collections.find((c) => c.id === activeId && !c.deleted) ?? collections.find((c) => !c.deleted) ?? collections[0];
-  const tree = col?.tree ?? [];
+  
+  // Защита от отсутствия коллекции
+  if (!col) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-4 text-center">
+        <div className="text-fog/60">Нет доступных коллекций</div>
+      </div>
+    );
+  }
+  
+  const tree = col.tree;
   const trashFolder = getTrash(tree);
   const normalNodes = tree.filter((n) => !(n.kind === "folder" && n.isTrash));
   const visible = collections.filter((c) => !c.deleted);
