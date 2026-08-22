@@ -53,15 +53,27 @@ export default function WorkspacePage() {
   // Загрузка состояния рабочего места после аутентификации
   useEffect(() => {
     if (!authed || !authed.user || !authed.user.accountId) return;
-    const s = loadStateFor(authed.user.accountId);
-    setState({
-      collections: s.collections || [],
-      activeId: s.activeId || "",
-      buildNo: s.buildNo || 0,
-      cookieStore: s.cookieStore || {},
-      account: s.account || { id: "", name: "" },
-      tagColors: s.tagColors || {},
-    });
+    try {
+      const s = loadStateFor(authed.user.accountId);
+      setState({
+        collections: Array.isArray(s.collections) ? s.collections : [],
+        activeId: s.activeId || "",
+        buildNo: s.buildNo || 0,
+        cookieStore: s.cookieStore || {},
+        account: s.account || { id: authed.user.accountId, name: authed.user.email || "User" },
+        tagColors: s.tagColors || {},
+      });
+    } catch (e) {
+      console.error("Ошибка загрузки состояния:", e);
+      setState({
+        collections: [],
+        activeId: "",
+        buildNo: 0,
+        cookieStore: {},
+        account: { id: authed.user.accountId, name: authed.user.email || "User" },
+        tagColors: {},
+      });
+    }
   }, [authed]);
 
   // Автосохранение состояния
@@ -88,12 +100,12 @@ export default function WorkspacePage() {
   const { collections, activeId, buildNo, cookieStore, account, tagColors } = state;
   
   // Надёжное получение активной коллекции
-  const col = collections.find((c) => c.id === activeId && !c.deleted) 
-    ?? collections.find((c) => !c.deleted) 
-    ?? null;
+  const col = collections && collections.length > 0 
+    ? (collections.find((c) => c.id === activeId && !c.deleted) || collections.find((c) => !c.deleted) || null)
+    : null;
   
   // Если коллекций нет вообще — показываем экран создания
-  if (!col || collections.length === 0) {
+  if (!collections || collections.length === 0 || !col) {
     return (
       <div className="grid h-screen w-screen place-items-center bg-deep text-fog">
         <div className="text-center">
@@ -150,7 +162,7 @@ export default function WorkspacePage() {
 
   const handleOpenTest = (nodeId: string) => {
     if (!col) return;
-    const test = col.tests.find((t) => t.requestId === nodeId);
+    const test = col.tests?.find((t) => t.requestId === nodeId);
     if (test) {
       setSelectedTestId(test.id);
       setFlashTestId(test.id);
