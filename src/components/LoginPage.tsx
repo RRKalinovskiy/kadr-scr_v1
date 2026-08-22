@@ -1,21 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, CheckCircle2, Diff, Eye, EyeOff, Loader2, Lock, Mail, Sparkles, User as UserIcon, XCircle } from "lucide-react";
+import { backend, validateEmail, validatePassword } from "../backend";
 
 type Mode = "login" | "register";
-
-interface TeamUser {
-  id: number;
-  email: string;
-  role: string;
-  team_id: number;
-  team_name: string;
-}
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("login");
-  const [teamName, setTeamName] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -23,59 +16,33 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // URL API - измените на ваш домен после деплоя
-  const API_URL = "/api.php";
-
   const submit = async () => {
     setError(null);
-    
+
     if (mode === "register") {
-      if (!teamName.trim()) return setError("Введите название команды");
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) return setError("Введите корректный email");
-      if (password.length < 6) return setError("Пароль должен быть не менее 6 символов");
+      if (!name.trim()) return setError("Введите имя");
+      const ee = validateEmail(email);
+      if (ee) return setError(ee);
+      const pe = validatePassword(password);
+      if (pe) return setError(pe);
       if (password !== confirm) return setError("Пароли не совпадают");
     } else {
       if (!email.trim()) return setError("Введите email");
       if (!password) return setError("Введите пароль");
     }
-    
+
     setBusy(true);
     try {
-      const action = mode === "login" ? "login" : "register_team";
-      
-      const payload: any = { email, password };
-      if (mode === "register") {
-        payload.teamName = teamName;
-      }
+      const res = mode === "register"
+        ? await backend.register(name, email, password)
+        : await backend.login(email, password);
 
-      const response = await fetch(`${API_URL}?action=${action}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Произошла ошибка");
-      }
-
-      if (mode === "login") {
-        // Успешный вход - сохраняем данные пользователя
-        const user = data.user as TeamUser;
-        localStorage.setItem("kadr_user", JSON.stringify(user));
+      if (res.ok) {
+        // Сохраняем пользователя в localStorage для восстановления сессии
+        localStorage.setItem("kadr_user", JSON.stringify(res.user));
         navigate("/workspace");
       } else {
-        // Успешная регистрация
-        alert("Команда успешно создана! Теперь войдите в систему.");
-        setMode("login");
-        setTeamName("");
-        setEmail("");
-        setPassword("");
-        setConfirm("");
+        setError(res.error);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Что-то пошло не так");
@@ -181,12 +148,12 @@ export default function LoginPage() {
           <div className="rounded-2xl border border-line bg-panel/85 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.4)] backdrop-blur">
             <div className="mb-4">
               <div className="font-display text-[17px] font-bold text-fog">
-                {mode === "login" ? "С возвращением" : "Создать команду"}
+                {mode === "login" ? "С возвращением" : "Создать рабочее место"}
               </div>
               <p className="mt-1 text-[11.5px] font-semibold text-mist">
                 {mode === "login"
                   ? "Войдите, чтобы открыть свои наборы и тесты."
-                  : "Зарегистрируйте команду и пригласите сотрудников."}
+                  : "Аккаунт хранит ваши коллекции, тесты и эталоны."}
               </p>
             </div>
 
@@ -194,7 +161,7 @@ export default function LoginPage() {
               {mode === "register" && (
                 <div className="relative">
                   <UserIcon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dim" />
-                  <input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Название команды" className={field} />
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ваше имя" className={field} />
                 </div>
               )}
 
@@ -230,7 +197,7 @@ export default function LoginPage() {
 
               <button onClick={() => void submit()} disabled={busy}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber px-4 py-2.5 text-[13px] font-extrabold text-[#17211d] shadow-[0_2px_14px_rgba(255,180,84,0.3)] transition-all duration-150 hover:bg-amber2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60">
-                {busy ? <Loader2 size={15} className="spin" /> : mode === "login" ? "Войти" : "Зарегистрировать команду"}
+                {busy ? <Loader2 size={15} className="spin" /> : mode === "login" ? "Войти" : "Создать аккаунт"}
               </button>
             </div>
           </div>
