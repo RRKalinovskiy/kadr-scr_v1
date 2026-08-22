@@ -3,6 +3,21 @@
 dist/
 build/
 
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
 # Dependencies
 node_modules/
 ```

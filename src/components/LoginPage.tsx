@@ -1,15 +1,21 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, CheckCircle2, Diff, Eye, EyeOff, Loader2, Lock, Mail, Sparkles, User as UserIcon, XCircle } from "lucide-react";
-import { backend, validateEmail, validatePassword, type PublicUser } from "../backend";
-import type { DbSession } from "../backend/db";
 
 type Mode = "login" | "register";
+
+interface TeamUser {
+  id: number;
+  email: string;
+  role: string;
+  team_id: number;
+  team_name: string;
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("login");
-  const [name, setName] = useState("");
+  const [teamName, setTeamName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -17,30 +23,59 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isSupa = backend.mode !== "local";
-  const dbLabel = backend.mode === "supabase" ? "Supabase" : "MySQL на reg.ru";
+  // URL API - измените на ваш домен после деплоя
+  const API_URL = "/api.php";
 
   const submit = async () => {
     setError(null);
+    
     if (mode === "register") {
-      const ee = validateEmail(email);
-      if (ee) return setError(ee);
-      const pe = validatePassword(password);
-      if (pe) return setError(pe);
+      if (!teamName.trim()) return setError("Введите название команды");
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) return setError("Введите корректный email");
+      if (password.length < 6) return setError("Пароль должен быть не менее 6 символов");
       if (password !== confirm) return setError("Пароли не совпадают");
-      if (!name.trim()) return setError("Укажите имя");
+    } else {
+      if (!email.trim()) return setError("Введите email");
+      if (!password) return setError("Введите пароль");
     }
+    
     setBusy(true);
     try {
-      const res =
-        mode === "register"
-          ? await backend.register(name, email, password)
-          : await backend.login(email, password);
-      if (res.ok) {
-        // Сохраняем сессию и перенаправляем на рабочую область
+      const action = mode === "login" ? "login" : "register_team";
+      
+      const payload: any = { email, password };
+      if (mode === "register") {
+        payload.teamName = teamName;
+      }
+
+      const response = await fetch(`${API_URL}?action=${action}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Произошла ошибка");
+      }
+
+      if (mode === "login") {
+        // Успешный вход - сохраняем данные пользователя
+        const user = data.user as TeamUser;
+        localStorage.setItem("kadr_user", JSON.stringify(user));
         navigate("/workspace");
       } else {
-        setError(res.error);
+        // Успешная регистрация
+        alert("Команда успешно создана! Теперь войдите в систему.");
+        setMode("login");
+        setTeamName("");
+        setEmail("");
+        setPassword("");
+        setConfirm("");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Что-то пошло не так");
@@ -138,23 +173,20 @@ export default function LoginPage() {
           </div>
 
           {/* индикатор режима хранилища */}
-          <div className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-[10.5px] font-bold ${
-            isSupa ? "border-teal/40 bg-teal/[0.07] text-teal" : "border-line bg-panel/60 text-dim"}`}>
-            {isSupa ? <CheckCircle2 size={13} className="shrink-0" /> : <Lock size={12} className="shrink-0" />}
-            {isSupa
-              ? `БД подключена · данные синхронизируются (${dbLabel})`
-              : "Локальный режим · данные хранятся в этом браузере"}
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-teal/40 bg-teal/[0.07] px-3 py-2 text-[10.5px] font-bold text-teal">
+            <CheckCircle2 size={13} className="shrink-0" />
+            Подключено к MySQL (reg.ru) · данные хранятся в БД
           </div>
 
           <div className="rounded-2xl border border-line bg-panel/85 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.4)] backdrop-blur">
             <div className="mb-4">
               <div className="font-display text-[17px] font-bold text-fog">
-                {mode === "login" ? "С возвращением" : "Создать рабочее место"}
+                {mode === "login" ? "С возвращением" : "Создать команду"}
               </div>
               <p className="mt-1 text-[11.5px] font-semibold text-mist">
                 {mode === "login"
                   ? "Войдите, чтобы открыть свои наборы и тесты."
-                  : "Аккаунт хранит ваши коллекции, тесты и эталоны."}
+                  : "Зарегистрируйте команду и пригласите сотрудников."}
               </p>
             </div>
 
@@ -162,7 +194,7 @@ export default function LoginPage() {
               {mode === "register" && (
                 <div className="relative">
                   <UserIcon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dim" />
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ваше имя" className={field} />
+                  <input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Название команды" className={field} />
                 </div>
               )}
 
@@ -198,16 +230,14 @@ export default function LoginPage() {
 
               <button onClick={() => void submit()} disabled={busy}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber px-4 py-2.5 text-[13px] font-extrabold text-[#17211d] shadow-[0_2px_14px_rgba(255,180,84,0.3)] transition-all duration-150 hover:bg-amber2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60">
-                {busy ? <Loader2 size={15} className="spin" /> : mode === "login" ? "Войти" : "Создать аккаунт"}
+                {busy ? <Loader2 size={15} className="spin" /> : mode === "login" ? "Войти" : "Зарегистрировать команду"}
               </button>
             </div>
           </div>
 
           <div className="mt-4 flex items-center justify-center gap-1.5 text-center text-[10px] font-semibold text-dim">
             <Sparkles size={11} className="text-teal" />
-            {isSupa
-              ? `Подключено к ${dbLabel}: данные и пользователи хранятся в БД`
-              : "Локальный режим: аккаунты и тесты хранятся в этом браузере. Подключите БД, чтобы синхронизировать."}
+            Данные хранятся в базе данных MySQL на reg.ru
           </div>
         </div>
       </div>
