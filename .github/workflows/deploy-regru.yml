@@ -1,0 +1,127 @@
+# ============================================================
+# Автодеплой на хостинг reg.ru → сайт kadr-scr.ru
+# ============================================================
+# При каждом пуше в main/master GitHub Actions:
+#   1) собирает проект (npm run build → единый dist/index.html);
+#   2) подключает ключи БД (если заданы);
+#   3) публикует содержимое dist/ в отдельную ветку `deploy`
+#      (для reg.ru «Сайт из Git» — подключайте именно её, НЕ main!);
+#   4) (опционально) загружает dist/ на reg.ru по FTP, если заданы
+#      FTP-секреты.
+#
+# ПОЧЕМУ ВЕТКА deploy: reg.ru «Сайт из Git» выкладывает корень той ветки,
+# к которой подключён. В main лежит исходный код (со src/main.tsx) — отсюда
+# ошибка "module script MIME type". В ветке deploy лежит ТОЛЬКО сборка
+# (один index.html), поэтому подключение reg.ru к ветке deploy работает всегда.
+#
+# НАСТРОЙКА (один раз) — выберите ОДИН из двух путей:
+#
+#   ПУТЬ A: reg.ru «Сайт из Git» (проще, без FTP-секретов)
+#     В панели reg.ru подключите репозиторий к ветке `deploy`.
+#     Ничего больше настраивать не нужно — workflow сам её обновляет.
+#
+#   ПУТЬ B: FTP через GitHub Actions
+#     GitHub → репозиторий → Settings → Secrets and variables → Actions
+#     → New repository secret. Создайте секреты:
+#       FTP_SERVER      server290.hosting.reg.ru
+#       FTP_USERNAME    логин FTP (вида kadr-scr.ru или uXXXXXX)
+#       FTP_PASSWORD    пароль FTP
+#       FTP_TARGET_DIR  /www/kadr-scr.ru/   (ОБЯЗАТЕЛЬНО со слешем!)
+#
+#   Ключи БД (опционально, для облачной БД Supabase):
+#     VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+#   Если не заданы — сайт работает в локальном режиме (localStorage).
+# ============================================================
+
+name: Deploy to reg.ru (kadr-scr.ru)
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      # Подключение БД: секреты GitHub имеют приоритет над .env.production.
+      - name: Apply Supabase config
+        run: |
+          if [ -n "$SB_URL" ]; then
+            printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\n' "$SB_URL" "$SB_KEY" > .env.production
+            echo "→ Используем ключи БД из секретов GitHub"
+          elif [ -f .env.production ]; then
+            echo "→ Используем .env.production из репозитория"
+          else
+            echo "→ Ключи БД не заданы: локальный режим (localStorage)"
+          fi
+        env:
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Build
+        run: npm run build
+        env:
+          # Режим сервисного слоя для сборки под reg.ru:
+          #   regapi — БД MySQL + PHP-API на хостинге (папка api/).
+          # regapi имеет ПРИОРИТЕТ: даже если заданы секреты Supabase,
+          # приложение выберет regapi (явный режим). Переопределить можно
+          # секретом VITE_BACKEND (например, задать 'supabase' или пусто).
+          VITE_BACKEND: ${{ secrets.VITE_BACKEND || 'regapi' }}
+
+      # PHP-API (папка api/) должен попасть на сервер вместе со сборкой,
+      # иначе фронтенд не найдёт эндпоинты /api/*.php.
+      - name: Bundle PHP API into dist
+        run: |
+          mkdir -p dist/api
+          cp -r api/. dist/api/
+          echo "→ api/ добавлен в dist/api/"
+
+      # ----------------------------------------------------------
+      # ПУТЬ A: публикуем ТОЛЬКО сборку в ветку `deploy`.
+      # В reg.ru «Сайт из Git» подключайте репозиторий к ветке deploy.
+      # Ветка содержит исключительно содержимое dist/ (один index.html).
+      # ----------------------------------------------------------
+      - name: Publish dist to branch `deploy`
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: deploy
+          force_orphan: true
+
+      # ----------------------------------------------------------
+      # ПУТЬ B: загрузка по FTP (работает, только если заданы секреты).
+      # secrets недоступны в if: шага, поэтому наличие FTP-секретов
+      # проверяет промежуточный шаг и передаёт результат в output.
+      # ----------------------------------------------------------
+      - name: Detect FTP secrets
+        id: ftp
+        run: echo "enabled=${FTP_SERVER:+true}" >> "$GITHUB_OUTPUT"
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+
+      - name: Upload to reg.ru via FTP (с очисткой папки)
+        if: steps.ftp.outputs.enabled == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: ${{ secrets.FTP_TARGET_DIR }}
+          dangerous-clean-slate: true
