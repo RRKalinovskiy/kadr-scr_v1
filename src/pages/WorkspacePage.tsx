@@ -55,12 +55,12 @@ export default function WorkspacePage() {
     if (!authed || !authed.user || !authed.user.accountId) return;
     const s = loadStateFor(authed.user.accountId);
     setState({
-      collections: s.collections,
-      activeId: s.activeId,
-      buildNo: s.buildNo,
-      cookieStore: s.cookieStore,
-      account: s.account,
-      tagColors: s.tagColors,
+      collections: s.collections || [],
+      activeId: s.activeId || "",
+      buildNo: s.buildNo || 0,
+      cookieStore: s.cookieStore || {},
+      account: s.account || { id: "", name: "" },
+      tagColors: s.tagColors || {},
     });
   }, [authed]);
 
