@@ -1,25 +1,19 @@
 ```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
+# Build artifacts
+dist/
+build/
+*.js
+*.css
 
 # Dependencies
-vendor/
-composer.lock
-
-# Logs and temp files
-*.log
-*.tmp
-
-# Environment
-.env
-.env.local
-.env.*
+node_modules/
 
 # Editors
 .vscode/
 .idea/
 
-# Database
-*.sql.swp
+# Environment
+.env
+.env.local
+.env.*
 ```

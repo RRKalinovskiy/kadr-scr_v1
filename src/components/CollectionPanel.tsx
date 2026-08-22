@@ -179,8 +179,8 @@ function CollectionItem({ c, active, expanded, colDragDisabled, onToggle, onCtx,
   children?: ReactNode;
 }) {
   const { wrapper, handle } = useSortRow(c.id, colDragDisabled);
-  const tests = c.tests.length;
-  const failing = c.tests.filter((t) => t.status === "failed" || t.status === "diff").length;
+  const tests = c.tests?.length ?? 0;
+  const failing = (c.tests ?? []).filter((t) => t.status === "failed" || t.status === "diff").length;
   return (
     <div {...wrapper}>
       <div {...handle} onClick={onToggle} onContextMenu={(e) => onCtx(e, c.id)}
@@ -219,7 +219,7 @@ function DeletedRow({ c, onRestore, onPurge, onCtx }: { c: Collection; onRestore
       <Trash2 size={13} className="shrink-0 text-coral/70" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12px] font-extrabold text-mist line-through decoration-coral/50">{c.name}</div>
-        <div className="font-mono text-[9.5px] font-semibold text-dim">{c.tests.length} тестов · {stats.requests} запросов</div>
+        <div className="font-mono text-[9.5px] font-semibold text-dim">{c.tests?.length ?? 0} тестов · {stats.requests} запросов</div>
       </div>
       <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
         <button onClick={onRestore} title="Восстановить коллекцию" className="grid h-6 w-6 place-items-center rounded-md text-teal transition-all hover:bg-teal/15 active:scale-90"><ArchiveRestore size={13} /></button>
