@@ -1,55 +1,32 @@
-```php
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
+```
+# Build artifacts
 dist/
 build/
-*.class
-*.so
-*.dll
-*.exe
-*.a
+*.o
+*.obj
+*.out
 
 # Dependencies
+node_modules/
 .venv/
 venv/
-node_modules/
-target/
-.gradle/
+__pycache__/
 .mypy_cache/
 .pytest_cache/
-coverage/
-htmlcov/
-.coverage
+target/
+.gradle/
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
-*.swo
 
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# System files
-.DS_Store
-Thumbs.db
-```
-
-Wait, let me reconsider this. The modified files are only PHP and SQL files (api/common.php, api/config.php, mysql/schema.sql, public/create_tables.sql), which are source code files. There are no build artifacts, dependency directories, or temporary files in the change list that would require ignoring.
-
-Since the changes contain only source files (.php, .sql) and no build artifacts or dependencies, the output should be empty.
-
-```php
-
 ```
