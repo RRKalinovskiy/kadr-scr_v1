@@ -1,9 +1,4 @@
 ```
 # Build artifacts
 dist/
-build/
-public/assets/
-
-# Dependencies
-node_modules/
 ```
