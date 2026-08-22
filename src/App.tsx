@@ -399,11 +399,11 @@ function AppContent() {
     backend.logout();
     setAuthed(null);
     setState(null);
-    navigate("/");
+    navigate("/auth");
   };
 
   const handleWorkspace = () => {
-    navigate("/");
+    navigate("/workspace");
   };
 
   const handleSetEnabled = (ids: string[], v: boolean) => {
@@ -594,10 +594,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LoginPage />} />
+        <Route path="/auth" element={<LoginPage />} />
         <Route path="/workspace" element={<AppContent />} />
         <Route path="/stats" element={<StatsWrapper />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/" element={<Navigate to="/auth" replace />} />
+        <Route path="*" element={<Navigate to="/auth" replace />} />
       </Routes>
     </BrowserRouter>
   );
