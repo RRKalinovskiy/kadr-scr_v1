@@ -1,7 +1,46 @@
 -- SQL скрипт для создания таблиц в базе данных u3617849_default
 -- Выполните этот скрипт через phpMyAdmin или консоль MySQL на хостинге reg.ru
 
--- Таблица команд (teams)
+-- Таблица аккаунтов (команд)
+CREATE TABLE IF NOT EXISTS kadr_accounts (
+  id         VARCHAR(64)  NOT NULL PRIMARY KEY,
+  name       VARCHAR(255) NOT NULL DEFAULT '',
+  plan       VARCHAR(64)  NOT NULL DEFAULT 'team',
+  created_at BIGINT       NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Таблица пользователей
+CREATE TABLE IF NOT EXISTS kadr_users (
+  id            VARCHAR(64)  NOT NULL PRIMARY KEY,
+  account_id    VARCHAR(64)  NOT NULL,
+  name          VARCHAR(255) NOT NULL DEFAULT '',
+  email         VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at    BIGINT       NOT NULL,
+  UNIQUE KEY uq_email (email),
+  KEY idx_account (account_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Таблица сессий с поддержкой таймаута неактивности
+CREATE TABLE IF NOT EXISTS kadr_sessions (
+  token         VARCHAR(128) NOT NULL PRIMARY KEY,
+  user_id       VARCHAR(64)  NOT NULL,
+  account_id    VARCHAR(64)  NOT NULL,
+  created_at    BIGINT       NOT NULL,
+  expires_at    BIGINT       NOT NULL,
+  last_activity BIGINT       NOT NULL,
+  KEY idx_expires (expires_at),
+  KEY idx_last_activity (last_activity)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Таблица состояния аккаунта
+CREATE TABLE IF NOT EXISTS kadr_account_state (
+  account_id VARCHAR(64) NOT NULL PRIMARY KEY,
+  state      LONGTEXT    NOT NULL,
+  updated_at BIGINT      NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Таблица команд (teams) - для совместимости
 CREATE TABLE IF NOT EXISTS teams (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -12,7 +51,7 @@ CREATE TABLE IF NOT EXISTS teams (
     INDEX idx_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Таблица пользователей (users)
+-- Таблица пользователей (users) - для совместимости
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     team_id INT NOT NULL,
@@ -26,7 +65,7 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Таблица коллекций (collections) - для хранения наборов тестов
+-- Таблица коллекций (collections)
 CREATE TABLE IF NOT EXISTS collections (
     id INT AUTO_INCREMENT PRIMARY KEY,
     team_id INT NOT NULL,
@@ -40,7 +79,7 @@ CREATE TABLE IF NOT EXISTS collections (
     INDEX idx_team_id (team_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Таблица тестов (tests) - для хранения автотестов
+-- Таблица тестов (tests)
 CREATE TABLE IF NOT EXISTS tests (
     id INT AUTO_INCREMENT PRIMARY KEY,
     collection_id INT NOT NULL,
