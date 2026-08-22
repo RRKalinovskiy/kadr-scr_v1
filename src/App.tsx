@@ -52,27 +52,16 @@ function AppContent() {
 
   /* Восстановление сессии при старте */
   useEffect(() => {
-    // Пытаемся восстановить пользователя из localStorage
-    const storedUser = localStorage.getItem("kadr_user");
-    if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser);
-        if (user && user.id) {
-          // Создаем фейковую сессию для совместимости с остальным кодом
-          const fakeSession = {
-            id: `session_${user.id}`,
-            user_id: user.id,
-            created_at: new Date().toISOString()
-          };
-          setAuthed({ user: { accountId: String(user.team_id), email: user.email, role: user.role }, session: fakeSession });
-          navigate("/workspace");
-          return;
-        }
-      } catch (e) {
-        console.error("Ошибка восстановления сессии:", e);
-        localStorage.removeItem("kadr_user");
+    // Пытаемся восстановить сессию через backend
+    backend.restore().then((result) => {
+      if (result && result.user && result.session) {
+        setAuthed(result);
+        navigate("/workspace");
       }
-    }
+    }).catch((e) => {
+      console.error("Ошибка восстановления сессии:", e);
+      localStorage.removeItem("kadr-regapi-token");
+    });
   }, [navigate]);
 
   /* Загрузка состояния рабочего места после аутентификации */
