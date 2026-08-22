@@ -43,6 +43,40 @@ create table if not exists public.run_shots (
 );
 
 -- ------------------------------------------------------------
+-- ТАБЛИЦА КОМАНДНЫХ ТЕСТОВ
+-- Хранит тесты, доступные всей команде аккаунта
+-- ------------------------------------------------------------
+create table if not exists public.team_tests (
+  id           text primary key,
+  account_id   uuid not null,
+  name         text not null default '',
+  description  text,
+  suite        text not null default '__root__',
+  path         text not null default '',
+  viewports    jsonb default '[]'::jsonb,
+  assignee     text,
+  tags         jsonb default '[]'::jsonb,
+  test_type    text not null default 'auto',
+  page_url     text,
+  steps        jsonb default '[]'::jsonb,
+  enabled      boolean not null default true,
+  status       text not null default 'idle',
+  last_run     bigint,
+  dur_ms       bigint,
+  diff_pct     numeric(5,2) default 0,
+  baseline_at  bigint,
+  history      jsonb default '[]'::jsonb,
+  created_by   uuid not null,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists idx_team_tests_account on public.team_tests (account_id);
+create index if not exists idx_team_tests_suite on public.team_tests (suite);
+create index if not exists idx_team_tests_status on public.team_tests (status);
+create index if not exists idx_team_tests_created_by on public.team_tests (created_by);
+
+-- ------------------------------------------------------------
 -- Автоматика: при регистрации создаём профиль + рабочее место
 -- ------------------------------------------------------------
 create or replace function public.handle_new_user()
@@ -75,6 +109,7 @@ alter table public.profiles      enable row level security;
 alter table public.account_state enable row level security;
 alter table public.baselines     enable row level security;
 alter table public.run_shots     enable row level security;
+alter table public.team_tests    enable row level security;
 
 create policy "profiles: своё рабочее место"
   on public.profiles for all
@@ -91,5 +126,14 @@ create policy "baselines: своё рабочее место"
 create policy "run_shots: своё рабочее место"
   on public.run_shots for all
   using (account_id = auth.uid()) with check (account_id = auth.uid());
+
+create policy "team_tests: читать своё"
+  on public.team_tests for select
+  using (account_id = auth.uid());
+
+create policy "team_tests: писать своё"
+  on public.team_tests for all
+  using (account_id = auth.uid())
+  with check (account_id = auth.uid());
 
 create index if not exists idx_run_shots_test on public.run_shots (test_id);
