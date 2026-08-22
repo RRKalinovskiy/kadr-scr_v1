@@ -8,6 +8,7 @@ import { loadStateFor, saveStateFor, type PersistedState } from "./data";
 import { ensureTrash, nodeById, parentOf, childrenOf, isInsideTrash, getTrash } from "./tree";
 import { hostOfUrl } from "./urlcheck";
 import AuthGate from "./components/AuthGate";
+import LoginPage from "./components/LoginPage";
 import CollectionPanel from "./components/CollectionPanel";
 import TestTable from "./components/TestTable";
 import Inspector, { type ManualResult } from "./components/Inspector";
@@ -56,12 +57,14 @@ function AppContent() {
       // Проверяем, что пользователь действительно существует
       if (restored.user && restored.session) {
         setAuthed(restored);
+        // Если сессия восстановлена, перенаправляем на рабочую область
+        navigate("/workspace");
       } else {
         // Сессия невалидна — очищаем и не устанавливаем authed
         backend.logout();
       }
     }
-  }, []);
+  }, [navigate]);
 
   /* Загрузка состояния рабочего места после аутентификации */
   useEffect(() => {
@@ -88,7 +91,8 @@ function AppContent() {
   }, [state, authed]);
 
   if (!authed) {
-    return <AuthGate onAuthed={(u, s) => setAuthed({ user: u, session: s })} />;
+    // Если нет сессии, пользователь уже на странице входа (LoginPage)
+    return null;
   }
 
   if (!state) {
@@ -592,7 +596,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AppContent />} />
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/workspace" element={<AppContent />} />
         <Route path="/stats" element={<StatsWrapper />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
