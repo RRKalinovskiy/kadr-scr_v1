@@ -54,6 +54,10 @@ export default function Toolbar({ buildNo, buildActive, progress, savedAt, canRu
           {backend.mode === "supabase" ? "Облако" : backend.mode === "regapi" ? "БД reg.ru" : "Локально"}
         </span>
         {savedAt && <span className="hidden text-[11px] font-semibold text-dim lg:block">сохранено в {fmtTime(savedAt)}</span>}
+        <Link to="/cloud-statistic" title="Облачная статистика — отчеты команды"
+          className="flex h-9 items-center gap-2 rounded-lg border border-line bg-raised px-3 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-amber/50 hover:text-amber active:scale-[0.97]">
+          <BarChart3 size={14} /><span className="hidden md:inline">Отчеты</span>
+        </Link>
         <Link to="/stats" title="Статистика — отдельная страница"
           className="flex h-9 items-center gap-2 rounded-lg border border-line bg-raised px-3 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-amber/50 hover:text-amber active:scale-[0.97]">
           <BarChart3 size={14} /><span className="hidden md:inline">Статистика</span>

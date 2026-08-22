@@ -18,6 +18,7 @@ import ShotTestsView from "./components/ShotTestsView";
 import DataDrawer from "./components/DataDrawer";
 import TestBuilder from "./components/TestBuilder";
 import NewTestModal from "./components/NewTestModal";
+import CloudStatisticPage from "./pages/CloudStatisticPage";
 import type { UrlState } from "./urlcheck";
 import type { AuthCheckState } from "./types";
 
@@ -597,6 +598,7 @@ export default function App() {
         <Route path="/auth" element={<LoginPage />} />
         <Route path="/workspace" element={<AppContent />} />
         <Route path="/stats" element={<StatsWrapper />} />
+        <Route path="/cloud-statistic" element={<CloudStatisticPage />} />
         <Route path="/" element={<Navigate to="/auth" replace />} />
         <Route path="*" element={<Navigate to="/auth" replace />} />
       </Routes>
