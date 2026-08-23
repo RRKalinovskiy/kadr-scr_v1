@@ -113,4 +113,14 @@ export const supabaseBackend = {
     if (error || !data) return [];
     return data.map((r) => toPublic(String(r.id), String(r.account_id), String(r.email), String(r.name)));
   },
+
+  async loadUserSettings<T>(accountId: string): Promise<T | null> {
+    const { data, error } = await sb().from("user_settings").select("settings").eq("account_id", accountId).maybeSingle();
+    if (error || !data) return null;
+    return (data.settings as T) ?? null;
+  },
+
+  async saveUserSettings<T>(accountId: string, settings: T) {
+    await sb().from("user_settings").upsert({ account_id: accountId, settings }, { onConflict: "account_id" });
+  },
 };

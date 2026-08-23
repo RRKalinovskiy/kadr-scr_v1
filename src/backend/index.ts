@@ -31,6 +31,8 @@ export interface Backend {
   loadState<T>(accountId: string): Promise<T | null> | T | null;
   saveState<T>(accountId: string, state: T): Promise<void> | void;
   listUsers(accountId: string): Promise<PublicUser[]> | PublicUser[];
+  loadUserSettings<T>(accountId: string): Promise<T | null> | T | null;
+  saveUserSettings<T>(accountId: string, settings: T): Promise<void> | void;
 }
 
 /**
@@ -52,6 +54,8 @@ function createBackend(): Backend {
       loadState: (id) => regapiBackend.loadState(id),
       saveState: (id, s) => regapiBackend.saveState(id, s),
       listUsers: (id) => regapiBackend.listUsers(id),
+      loadUserSettings: (id) => regapiBackend.loadUserSettings(id),
+      saveUserSettings: (id, s) => regapiBackend.saveUserSettings(id, s),
     };
   }
   if (isSupabase()) {
@@ -64,6 +68,8 @@ function createBackend(): Backend {
       loadState: (id) => supabaseBackend.loadState(id),
       saveState: (id, s) => supabaseBackend.saveState(id, s),
       listUsers: (id) => supabaseBackend.listUsers(id),
+      loadUserSettings: (id) => supabaseBackend.loadUserSettings(id),
+      saveUserSettings: (id, s) => supabaseBackend.saveUserSettings(id, s),
     };
   }
   return {
@@ -75,6 +81,8 @@ function createBackend(): Backend {
     loadState: (id) => db.loadAccountState(id),
     saveState: (id, s) => db.saveAccountState(id, s),
     listUsers: (id) => listAccountUsers(id),
+    loadUserSettings: (id) => db.loadUserSettings(id),
+    saveUserSettings: (id, s) => db.saveUserSettings(id, s),
   };
 }
 

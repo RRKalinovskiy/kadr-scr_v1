@@ -154,4 +154,25 @@ export const regapiBackend = {
       return [];
     }
   },
+
+  async loadUserSettings<T>(accountId: string): Promise<T | null> {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return null;
+    try {
+      const d = await req<{ ok: boolean; settings: T | null }>("settings.php", { method: "GET", token });
+      return d.settings ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  async saveUserSettings<T>(accountId: string, settings: T): Promise<void> {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    try {
+      await req("settings.php", { method: "POST", token, body: { settings } });
+    } catch {
+      /* нет связи с БД — настройки останутся в локальном кеше */
+    }
+  },
 };
