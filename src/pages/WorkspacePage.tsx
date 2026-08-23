@@ -22,12 +22,18 @@ const WorkspacePage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'builder' | 'inspector'>('list');
   const [activeTest, setActiveTest] = useState<any | null>(null);
 
-  // Load state on mount
+  // Load state on mount with safety checks
   useEffect(() => {
-    const state = backend.loadState();
-    setCollections(state.collections);
-    if (state.collections.length > 0) {
-      setActiveCollectionId(state.collections[0].id);
+    try {
+      const state = backend.loadState();
+      const cols = state?.collections || [];
+      setCollections(cols);
+      if (cols.length > 0) {
+        setActiveCollectionId(cols[0].id);
+      }
+    } catch (e) {
+      console.error('Failed to load state:', e);
+      setCollections([]);
     }
   }, []);
 
