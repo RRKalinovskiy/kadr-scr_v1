@@ -1,52 +1,81 @@
 ```gitignore
-# Compiled and build artifacts
-*.pyc
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+target/
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.*
+.env
+.env.*
+.env.local
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.nyc_output/
+coverage/
+
+# Distribution / packaging
+*.tar.gz
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+
+# Environment
+.env
+.env.local
+.env.*
+!.env.example
+
+# Compiled and binary files
 *.o
 *.obj
 *.exe
 *.dll
 *.so
-*.class
+*.a
 *.out
-
-# Dependencies
-node_modules/
-venv/
-.venv/
-.env
-.env.local
-*.env.*
-
-# Build directories
-dist/
-build/
-target/
-coverage/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Editors
-.vscode/
-.idea/
-*.DS_Store
-Thumbs.db
-
-# Python specific
-.mypy_cache/
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Java/Gradle
-.gradle/
 *.class
 
-# Compression files
+# Compressed files
 *.zip
 *.gz
 *.tar
