@@ -39,54 +39,40 @@ export default function CloudStatisticPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-100 text-gray-900">
+    <div className="min-h-screen bg-gray-50">
       {/* Header Component */}
       <Header />
       
       {/* Main Content */}
-      <main className="flex-1 p-6">
-        {/* Page Header */}
-        <div className="mb-6 flex items-center justify-between">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Title */}
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="font-semibold text-2xl font-bold text-gray-900">Статистика облака</h1>
-            <p className="text-sm text-gray-500 mt-1">Мониторинг и отчеты по тестам команды</p>
+            <h1 className="text-2xl font-bold text-gray-900">Статистика облака</h1>
+            <p className="text-gray-500 mt-1">Мониторинг и отчеты по тестам команды</p>
           </div>
-          <button
-            onClick={() => navigate("/workspace")}
-            className="flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 text-[12px] font-extrabold text-gray-500 transition-all duration-150 hover:border-green-300 hover:text-green-600 active:scale-[0.97]"
-          >
-            ← Назад в workspace
-          </button>
         </div>
 
         {/* Content */}
-        <div className="max-w-lg text-center">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-gray-300 bg-gray-50">
-            <BarChart3 size={40} className="text-amber" />
+        <div className="text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50">
+            <BarChart3 size={40} className="text-blue-600" />
           </div>
-          <h1 className="mb-3 font-semibold text-[22px] font-bold text-gray-900">
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">
             Облачная статистика
-          </h1>
-          <p className="mb-6 text-[14px] font-medium text-dim">
+          </h2>
+          <p className="mb-6 text-sm text-gray-500 max-w-md mx-auto">
             Здесь будут отображаться отчеты по тестам вашей команды.<br />
             Статистика хранится в базе данных и доступна всем участникам аккаунта.
           </p>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-[13px] font-extrabold text-gray-500 transition-all duration-150 hover:border-blue-300 hover:text-blue-600 active:scale-[0.97]"
-            >
-              <RefreshCw size={14} />
-              Обновить отчеты
-            </button>
-          </div>
           
           {/* Заглушка для будущих отчетов */}
-          <div className="mt-10 rounded-lg border border-dashed border-gray-300 bg-white/30 p-8">
-            <Inbox size={32} className="mx-auto mb-3 text-dim" />
-            <p className="text-[13px] font-semibold text-dim">
+          <div className="mt-10 rounded-lg border-2 border-dashed border-gray-300 bg-white p-8 max-w-2xl mx-auto">
+            <Inbox size={32} className="mx-auto mb-3 text-gray-400" />
+            <p className="text-sm font-medium text-gray-500">
               Отчеты пока не сформированы
             </p>
-            <p className="mt-1 text-[12px] text-dim">
+            <p className="mt-1 text-xs text-gray-400">
               Запустите сборку тестов в workspace, чтобы увидеть статистику
             </p>
           </div>
