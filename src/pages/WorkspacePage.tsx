@@ -37,7 +37,7 @@ const WorkspacePage: React.FC = () => {
   }, [collections]);
 
   const activeCollection = collections.find(c => c.id === activeCollectionId) || null;
-  const tests = activeCollection ? activeCollection.tests : [];
+  const tests = activeCollection?.tests || [];
 
   const handleCreateCollection = (data: { name: string; url: string; color: string }) => {
     const newCollection: Collection = {
