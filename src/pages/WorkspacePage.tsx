@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Trash2, Play, Edit, Folder, FileCode, LogOut, 
-  CheckCircle, AlertCircle, Clock, Tag
+  CheckCircle, AlertCircle, Clock, Tag, Users, BarChart3
 } from 'lucide-react';
 import CollectionModal from '../components/CollectionModal';
 import NewTestModal from '../components/NewTestModal';
 import TestBuilder from '../components/TestBuilder';
 import Inspector from '../components/Inspector';
-import type { Collection } from '../types';
+import UserMenu from '../components/UserMenu';
+import type { Collection, Account } from '../types';
 import { backend } from "../backend";
+import { loadStateFor, saveStateFor, type PersistedState } from "../data";
+import { db } from "../backend/db";
 
 const WorkspacePage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,11 +24,69 @@ const WorkspacePage: React.FC = () => {
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'builder' | 'inspector'>('list');
   const [activeTest, setActiveTest] = useState<any | null>(null);
+  const [account, setAccount] = useState<Account | null>(null);
+
+  // Get account ID from session or localStorage
+  const getAccountId = (): string => {
+    const token = localStorage.getItem("kadr-regapi-token");
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.accountId || payload.sub || "default";
+      } catch {
+        return "default";
+      }
+    }
+    return "default";
+  };
+
+  // Load account info
+  useEffect(() => {
+    const accountId = getAccountId();
+    const session = db.listSessions().find(s => s.accountId === accountId);
+    if (session) {
+      const user = db.getUser(session.userId);
+      const acc = db.getAccount(accountId);
+      if (user && acc) {
+        setAccount({
+          id: acc.id,
+          name: user.name,
+          email: user.email,
+          plan: acc.plan,
+          createdAt: acc.createdAt,
+        });
+      } else {
+        // Fallback from token
+        const token = localStorage.getItem("kadr-regapi-token");
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setAccount({
+              id: payload.accountId || payload.sub,
+              name: payload.name || "User",
+              email: payload.email || "user@example.com",
+              plan: payload.plan || "free",
+              createdAt: Date.now(),
+            });
+          } catch {
+            setAccount({
+              id: accountId,
+              name: "User",
+              email: "user@example.com",
+              plan: "free",
+              createdAt: Date.now(),
+            });
+          }
+        }
+      }
+    }
+  }, []);
 
   // Load state on mount with safety checks
   useEffect(() => {
     try {
-      const state = backend.loadState();
+      const accountId = getAccountId();
+      const state = loadStateFor(accountId);
       const cols = state?.collections || [];
       setCollections(cols);
       if (cols.length > 0) {
@@ -39,8 +100,17 @@ const WorkspacePage: React.FC = () => {
 
   // Save state on change
   useEffect(() => {
-    backend.saveState({ collections });
-  }, [collections]);
+    const accountId = getAccountId();
+    const fullState: PersistedState = {
+      collections,
+      activeId: activeCollectionId || "",
+      buildNo: 13,
+      cookieStore: {},
+      account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
+      tagColors: {},
+    };
+    saveStateFor(accountId, fullState);
+  }, [collections, activeCollectionId]);
 
   const activeCollection = collections.find(c => c.id === activeCollectionId) || null;
   const tests = activeCollection?.tests || [];
@@ -208,21 +278,61 @@ const WorkspacePage: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 bg-deep">
+        {/* Header with tabs and user menu */}
+        <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-panel/50 backdrop-blur-sm">
+          <div className="flex items-center gap-6">
+            {/* Tabs */}
+            <nav className="flex items-center gap-1">
+              <button
+                onClick={() => {}}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-raised text-fog font-semibold text-sm transition-colors"
+              >
+                <Users size={16} />
+                <span>Команда</span>
+              </button>
+              <button
+                onClick={() => navigate("/cloud-statistic")}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-mist hover:text-fog hover:bg-raised/50 font-semibold text-sm transition-colors"
+              >
+                <BarChart3 size={16} />
+                <span>Статистика облака</span>
+              </button>
+            </nav>
+            
+            {/* Collection title (if in workspace context) */}
+            {activeCollection && viewMode === 'list' && (
+              <>
+                <div className="h-6 w-px bg-border" />
+                <h1 className="font-display font-bold text-xl text-fog">
+                  {activeCollection.name}
+                </h1>
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-raised text-mist border border-border">
+                  {tests.length} тестов
+                </span>
+              </>
+            )}
+          </div>
+          
+          {/* User menu */}
+          {account && (
+            <UserMenu 
+              account={account} 
+              onLogout={() => {
+                localStorage.removeItem("kadr-regapi-token");
+                navigate("/auth");
+              }}
+            />
+          )}
+        </header>
+
         {viewMode === 'list' && (
           <>
-            {/* Header */}
-            <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-panel/50 backdrop-blur-sm">
-              <div className="flex items-center gap-4">
-                <h1 className="font-display font-bold text-xl text-fog">
-                  {activeCollection ? activeCollection.name : 'Выберите коллекцию'}
-                </h1>
-                {activeCollection && (
-                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-raised text-mist border border-border">
-                    {tests.length} тестов
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
+            {/* Action bar for creating tests */}
+            {!activeCollection ? null : (
+              <div className="border-b border-border bg-panel/30 px-6 py-3 flex items-center justify-between">
+                <div className="text-sm text-mist">
+                  {tests.length > 0 ? `${tests.length} тестов в коллекции` : 'Нет тестов'}
+                </div>
                 <button
                   onClick={() => setIsTestModalOpen(true)}
                   disabled={!activeCollection}
@@ -232,7 +342,7 @@ const WorkspacePage: React.FC = () => {
                   <span>Новый тест</span>
                 </button>
               </div>
-            </header>
+            )}
 
             {/* Tests List */}
             <div className="flex-1 overflow-y-auto p-6">

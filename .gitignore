@@ -2,8 +2,6 @@
 # Build artifacts
 dist/
 build/
-*.js.map
-*.css.map
 
 # Dependencies
 node_modules/
@@ -16,12 +14,9 @@ node_modules/
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Logs and temp files
+# Logs
 *.log
-*.tmp
 
 # Python
 __pycache__/
@@ -29,7 +24,25 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Compiled files
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Testing
+.mypy_cache/
+.pytest_cache/
+
+# Compiled
 *.o
 *.obj
 *.exe
@@ -38,7 +51,7 @@ __pycache__/
 *.a
 *.out
 
-# Compression
+# Compressed
 *.zip
 *.gz
 *.tar
@@ -57,8 +70,4 @@ __pycache__/
 *.Z
 *.lz
 *.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
 ```
