@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Header } from '../components/Header';
 import { 
   ArrowLeft, Plus, Copy, Check, Edit2, Trash2, Mail, Phone, 
   Shield, UserCheck, UserX, Search, MoreVertical
@@ -97,19 +98,14 @@ export default function TeamPage() {
 
   return (
     <div className="min-h-screen bg-deep text-fog font-body">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-panel/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate("/workspace")}
-              className="flex items-center gap-2 text-mist hover:text-fog transition-colors"
-            >
-              <ArrowLeft size={20} />
-              <span className="font-medium">Назад</span>
-            </button>
-            <h1 className="font-display text-xl font-bold text-fog">Команда</h1>
-          </div>
+      {/* Header Component */}
+      <Header />
+      
+      {/* Main Content */}
+      <div className="mx-auto max-w-6xl px-6 py-8">
+        {/* Page Title */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="font-display text-2xl font-bold text-fog">Команда</h1>
           <button
             onClick={handleCopyInvite}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
@@ -122,9 +118,8 @@ export default function TeamPage() {
             <span>{copied ? "Скопировано" : "Пригласить"}</span>
           </button>
         </div>
-      </header>
 
-      {/* Content */}
+        {/* Content */}
       <main className="mx-auto max-w-6xl px-6 py-8">
         {/* Invite Section */}
         <section className="mb-8 rounded-xl border border-border bg-panel p-6">
@@ -299,7 +294,7 @@ export default function TeamPage() {
             })}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

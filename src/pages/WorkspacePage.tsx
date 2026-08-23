@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Header } from '../components/Header';
 import { 
   Plus, Trash2, Play, Edit, Folder, FileCode, LogOut, 
   CheckCircle, AlertCircle, Clock, Tag, Users, BarChart3
@@ -209,6 +210,9 @@ const WorkspacePage: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-deep text-fog font-body overflow-hidden">
+      {/* Header Component */}
+      <Header />
+      
       {/* Sidebar */}
       <aside className="w-64 bg-panel border-r border-border flex flex-col">
         <div className="p-4 border-b border-border flex items-center justify-between">
@@ -278,52 +282,7 @@ const WorkspacePage: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 bg-deep">
-        {/* Header with tabs and user menu */}
-        <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-panel/50 backdrop-blur-sm">
-          <div className="flex items-center gap-6">
-            {/* Tabs */}
-            <nav className="flex items-center gap-1">
-              <button
-                onClick={() => navigate("/team")}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-raised text-fog font-semibold text-sm transition-colors"
-              >
-                <Users size={16} />
-                <span>Команда</span>
-              </button>
-              <button
-                onClick={() => navigate("/cloud-statistic")}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-mist hover:text-fog hover:bg-raised/50 font-semibold text-sm transition-colors"
-              >
-                <BarChart3 size={16} />
-                <span>Статистика облака</span>
-              </button>
-            </nav>
-            
-            {/* Collection title (if in workspace context) */}
-            {activeCollection && viewMode === 'list' && (
-              <>
-                <div className="h-6 w-px bg-border" />
-                <h1 className="font-display font-bold text-xl text-fog">
-                  {activeCollection.name}
-                </h1>
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-raised text-mist border border-border">
-                  {tests.length} тестов
-                </span>
-              </>
-            )}
-          </div>
-          
-          {/* User menu */}
-          {account && (
-            <UserMenu 
-              account={account} 
-              onLogout={() => {
-                localStorage.removeItem("kadr-regapi-token");
-                navigate("/auth");
-              }}
-            />
-          )}
-        </header>
+        {/* Header with tabs and user menu - REMOVED, now in Header component */}
 
         {viewMode === 'list' && (
           <>
