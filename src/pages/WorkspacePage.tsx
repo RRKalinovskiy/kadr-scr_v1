@@ -10,6 +10,8 @@ import TestBuilder from '../components/TestBuilder';
 import Inspector from '../components/Inspector';
 import type { Collection } from '../types';
 import { backend } from "../backend";
+import { loadStateFor, saveStateFor, type PersistedState } from "../data";
+import { db } from "../backend/db";
 
 const WorkspacePage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,10 +24,25 @@ const WorkspacePage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'builder' | 'inspector'>('list');
   const [activeTest, setActiveTest] = useState<any | null>(null);
 
+  // Get account ID from session or localStorage
+  const getAccountId = (): string => {
+    const token = localStorage.getItem("kadr-regapi-token");
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.accountId || payload.sub || "default";
+      } catch {
+        return "default";
+      }
+    }
+    return "default";
+  };
+
   // Load state on mount with safety checks
   useEffect(() => {
     try {
-      const state = backend.loadState();
+      const accountId = getAccountId();
+      const state = loadStateFor(accountId);
       const cols = state?.collections || [];
       setCollections(cols);
       if (cols.length > 0) {
@@ -39,8 +56,17 @@ const WorkspacePage: React.FC = () => {
 
   // Save state on change
   useEffect(() => {
-    backend.saveState({ collections });
-  }, [collections]);
+    const accountId = getAccountId();
+    const fullState: PersistedState = {
+      collections,
+      activeId: activeCollectionId || "",
+      buildNo: 13,
+      cookieStore: {},
+      account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
+      tagColors: {},
+    };
+    saveStateFor(accountId, fullState);
+  }, [collections, activeCollectionId]);
 
   const activeCollection = collections.find(c => c.id === activeCollectionId) || null;
   const tests = activeCollection?.tests || [];
