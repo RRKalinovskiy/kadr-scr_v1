@@ -1,8 +1,23 @@
 import { useNavigate } from "react-router-dom";
 import { Camera, CheckCircle2, Diff, Eye, Shield, Zap, Layers, ArrowRight } from "lucide-react";
+import { useEffect } from "react";
 
 export default function HomePage() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = "КАДР — скрин-сборки автотестов";
+    
+    const link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+    if (link) {
+      link.href = "/favicon.ico";
+    } else {
+      const newLink = document.createElement("link");
+      newLink.rel = "icon";
+      newLink.href = "/favicon.ico";
+      document.head.appendChild(newLink);
+    }
+  }, []);
 
   const handleStartClick = () => {
     navigate("/auth");
@@ -62,13 +77,13 @@ export default function HomePage() {
             </p>
 
             {/* CTA Button */}
-            <div className="fade-up mt-10" style={{ animationDelay: "150ms" }}>
+            <div className="fade-up mt-10 flex justify-center" style={{ animationDelay: "150ms" }}>
               <button 
                 onClick={handleStartClick}
-                className="group flex items-center gap-3 rounded-xl bg-amber px-8 py-4 text-[15px] font-extrabold text-[#17211d] shadow-[0_4px_20px_rgba(255,180,84,0.4)] transition-all duration-200 hover:bg-amber2 hover:scale-105 hover:shadow-[0_6px_30px_rgba(255,180,84,0.5)] active:scale-[0.98]"
+                className="group flex items-center gap-3 rounded-xl bg-amber px-10 py-5 text-[16px] font-extrabold text-[#17211d] shadow-[0_4px_20px_rgba(255,180,84,0.4)] transition-all duration-200 hover:bg-amber2 hover:scale-105 hover:shadow-[0_6px_30px_rgba(255,180,84,0.5)] active:scale-[0.98]"
               >
                 Начать работу
-                <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                <ArrowRight size={20} className="transition-transform group-hover:translate-x-1" />
               </button>
             </div>
 
