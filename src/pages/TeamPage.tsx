@@ -102,7 +102,7 @@ export default function TeamPage() {
       <Header />
       
       {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Title */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -149,7 +149,7 @@ export default function TeamPage() {
               onClick={handleCopyInvite}
               className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50 transition-all"
             >
-              {copied ? <Check size={16} className="text-sage" /> : <Copy size={16} />}
+              {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
               <span>{copied ? "Скопировано" : "Копировать"}</span>
             </button>
           </div>
@@ -163,7 +163,7 @@ export default function TeamPage() {
             placeholder="Поиск по имени или email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white pl-12 pr-4 py-3 text-gray-900 placeholder-mist/50 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-200 bg-white pl-12 pr-4 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
@@ -171,10 +171,10 @@ export default function TeamPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredMembers.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-4 bg-gray-50 rounded-full mb-4">
+              <div className="p-4 bg-gray-100 rounded-full mb-4">
                 {searchQuery ? <Search size={32} className="text-gray-500" /> : <Plus size={32} className="text-gray-500" />}
               </div>
-              <h3 className="font-semibold text-lg font-bold text-gray-900 mb-2">
+              <h3 className="font-semibold text-lg text-gray-900 mb-2">
                 {searchQuery ? "Ничего не найдено" : "В команде пока никого нет"}
               </h3>
               <p className="text-gray-500 text-sm max-w-md">
@@ -186,7 +186,7 @@ export default function TeamPage() {
           ) : (
             filteredMembers.map(member => {
               const RoleIcon = ROLE_META[member.role]?.icon || Shield;
-              const roleColor = ROLE_META[member.role]?.color || "#60a5fa";
+              const roleColor = member.role === "admin" ? "#dc2626" : member.role === "qa" ? "#16a34a" : "#2563eb";
               
               return (
                 <div
@@ -196,11 +196,11 @@ export default function TeamPage() {
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="grid h-12 w-12 place-items-center rounded-full bg-amber/20 text-[15px] font-extrabold text-amber">
+                      <div className="grid h-12 w-12 place-items-center rounded-full bg-orange-100 text-orange-600">
                         {member.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}
                       </div>
                       <div>
-                        <h3 className="font-semibold font-bold text-gray-900 truncate max-w-[180px]">
+                        <h3 className="font-semibold text-gray-900 truncate max-w-[180px]">
                           {member.name}
                         </h3>
                         <p className="text-xs text-gray-500 font-mono">{member.email}</p>
@@ -223,7 +223,7 @@ export default function TeamPage() {
                       <span className="truncate">{member.email}</span>
                     </div>
                     {member.lastActive && (
-                      <div className="flex items-center gap-2 text-xs text-dim">
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
                         <span>Был в сети:</span>
                         <span>{new Date(member.lastActive).toLocaleDateString("ru-RU")}</span>
                       </div>
@@ -231,7 +231,7 @@ export default function TeamPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200/50">
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                     {/* Role Selector */}
                     <select
                       value={member.role}
@@ -248,13 +248,13 @@ export default function TeamPage() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleDeleteMember(member.id)}
-                          className="rounded bg-coral px-2 py-1 text-[10px] font-bold text-[#2b0f0b] hover:brightness-110"
+                          className="rounded bg-red-100 px-2 py-1 text-[10px] font-bold text-red-800 hover:bg-red-200"
                         >
                           Да
                         </button>
                         <button
                           onClick={() => setShowDeleteConfirm(null)}
-                          className="rounded border border-line bg-gray-50 px-2 py-1 text-[10px] font-bold text-gray-500 hover:text-gray-900"
+                          className="rounded border border-gray-300 bg-gray-50 px-2 py-1 text-[10px] font-bold text-gray-500 hover:text-gray-900"
                         >
                           Нет
                         </button>
@@ -282,11 +282,12 @@ export default function TeamPage() {
               const count = members.filter(m => m.role === role).length;
               const meta = ROLE_META[role];
               const Icon = meta.icon;
+              const roleColor = role === "admin" ? "#dc2626" : role === "qa" ? "#16a34a" : "#2563eb";
               
               return (
                 <div key={role} className="rounded-lg border border-gray-200 bg-white p-4 text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <Icon size={18} style={{ color: meta.color }} />
+                    <Icon size={18} style={{ color: roleColor }} />
                     <span className="text-sm font-semibold text-gray-500">{meta.label}</span>
                   </div>
                   <div className="text-2xl font-bold text-gray-900">{count}</div>
