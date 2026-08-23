@@ -4,6 +4,7 @@ dist/
 build/
 *.js.map
 *.min.js
+*.bundle.js
 
 # Dependencies
 node_modules/
@@ -15,7 +16,7 @@ node_modules/
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
 # Editors
 .vscode/
@@ -29,27 +30,9 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-env/
 venv/
 .venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
-
-# Compiled and binary files
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
-*.class
-
-# OS generated files
-.DS_Store
-Thumbs.db
+.env
+.env.local
+.env.*
 ```
