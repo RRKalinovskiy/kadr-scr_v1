@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Collection, AutoTest } from "../types";
-import { uid } from "../types";
+import type { Collection, AutoTest, CollectionDraft, Person } from "../types";
+import { uid, ROOT_SUITE } from "../types";
 import { backend, type PublicUser } from "../backend";
 import type { DbSession } from "../backend/db";
+import CollectionModal from "../components/CollectionModal";
+import NewTestModal from "../components/NewTestModal";
+import type { NewTestData } from "../components/NewTestModal";
 
 export default function WorkspacePage() {
   const navigate = useNavigate();
@@ -11,6 +14,18 @@ export default function WorkspacePage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Модальные окна
+  const [showCollectionModal, setShowCollectionModal] = useState<{ mode: "create" } | { mode: "edit"; id: string } | null>(null);
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [initialSuite, setInitialSuite] = useState<string | null>(null);
+  
+  // Заглушки для людей и тегов
+  const mockPeople: Person[] = [
+    { id: "u1", name: "Вы", avatar: "" },
+    { id: "u2", name: "Коллега", avatar: "" },
+  ];
+  const [tagColors, setTagColors] = useState<Record<string, string>>({});
 
   // Восстановление сессии
   useEffect(() => {
@@ -107,26 +122,7 @@ export default function WorkspacePage() {
               Создайте первую коллекцию для начала работы с тестами
             </p>
             <button 
-              onClick={() => {
-                const newCol: Collection = {
-                  id: uid(),
-                  name: "Моя коллекция",
-                  color: "#ffb454",
-                  baseUrl: "",
-                  screenUrl: "",
-                  browser: "chrome",
-                  viewports: ["1440"],
-                  threshold: 0.05,
-                  delayMs: 1000,
-                  baseline: "main",
-                  notify: [],
-                  auth: { enabled: false },
-                  tests: [],
-                  tree: [],
-                };
-                setCollections([newCol]);
-                setActiveId(newCol.id);
-              }}
+              onClick={() => setShowCollectionModal({ mode: "create" })}
               className="inline-flex items-center gap-2 rounded-lg bg-amber px-5 py-2.5 text-[13px] font-extrabold text-[#17211d] shadow-[0_2px_12px_rgba(255,180,84,0.3)] transition-all hover:brightness-110 active:scale-95"
             >
               Создать коллекцию
@@ -171,26 +167,7 @@ export default function WorkspacePage() {
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
             <span className="text-[12px] font-bold uppercase tracking-wider text-mist">Коллекции</span>
             <button
-              onClick={() => {
-                const newCol: Collection = {
-                  id: uid(),
-                  name: "Новая коллекция",
-                  color: "#ffb454",
-                  baseUrl: "",
-                  screenUrl: "",
-                  browser: "chrome",
-                  viewports: ["1440"],
-                  threshold: 0.05,
-                  delayMs: 1000,
-                  baseline: "main",
-                  notify: [],
-                  auth: { enabled: false },
-                  tests: [],
-                  tree: [],
-                };
-                setCollections([...collections, newCol]);
-                setActiveId(newCol.id);
-              }}
+              onClick={() => setShowCollectionModal({ mode: "create" })}
               className="rounded p-1 hover:bg-white/10"
               title="Добавить коллекцию"
             >
@@ -246,7 +223,8 @@ export default function WorkspacePage() {
                 </div>
                 <button
                   onClick={() => {
-                    console.log("Создать тест");
+                    setInitialSuite(ROOT_SUITE);
+                    setShowTestModal(true);
                   }}
                   className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-[12px] font-extrabold text-[#17211d] transition-all hover:brightness-110"
                 >
@@ -296,6 +274,81 @@ export default function WorkspacePage() {
           )}
         </main>
       </div>
+
+      {/* Модальное окно создания/редактирования коллекции */}
+      {showCollectionModal && (
+        <CollectionModal
+          state={showCollectionModal}
+          col={showCollectionModal.mode === "edit" && activeCollection ? activeCollection : null}
+          cookieStore={{}}
+          authState={undefined}
+          onCheckAuth={undefined}
+          onClose={() => setShowCollectionModal(null)}
+          onSave={(id, draft) => {
+            if (id) {
+              // Редактирование
+              setCollections(collections.map(c => c.id === id ? { ...c, ...draft } as Collection : c));
+            } else {
+              // Создание новой
+              const newCol: Collection = {
+                id: uid(),
+                name: draft.name,
+                color: draft.color,
+                screenUrl: draft.screenUrl,
+                browser: draft.browser,
+                threshold: draft.threshold,
+                delayMs: draft.delayMs,
+                notify: draft.notify,
+                auth: draft.auth === "none" ? { enabled: false } : { enabled: true },
+                authLogin: draft.authLogin,
+                authPassword: draft.authPassword,
+                authKey: draft.authKey,
+                baseUrl: "",
+                viewports: ["1440"],
+                baseline: "main",
+                tests: [],
+                tree: [],
+              };
+              setCollections([...collections, newCol]);
+              setActiveId(newCol.id);
+            }
+            setShowCollectionModal(null);
+          }}
+        />
+      )}
+
+      {/* Модальное окно создания теста */}
+      {activeCollection && (
+        <NewTestModal
+          open={showTestModal}
+          col={activeCollection}
+          people={mockPeople}
+          initialSuite={initialSuite}
+          tagColors={tagColors}
+          onTagColor={(tag, color) => setTagColors({ ...tagColors, [tag]: color })}
+          onClose={() => setShowTestModal(false)}
+          onCreate={(data: NewTestData) => {
+            const newTest: AutoTest = {
+              id: uid(),
+              name: data.name,
+              path: data.path,
+              method: "GET",
+              status: "new",
+              suite: data.suite,
+              assignee: data.assignee,
+              viewports: data.viewports,
+              tags: data.tags,
+              steps: [],
+            };
+            setCollections(collections.map(c => 
+              c.id === activeCollection.id 
+                ? { ...c, tests: [...c.tests, newTest] }
+                : c
+            ));
+            setShowTestModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
