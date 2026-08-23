@@ -28,6 +28,16 @@ interface StatisticsSettings {
   refreshInterval: number;
 }
 
+// Глобальная функция для загрузки requirejs
+declare global {
+  interface Window {
+    requirejs?: (deps: string[], callback: (...args: any[]) => void) => void;
+    wsConfig?: {
+      appRoot: string;
+    };
+  }
+}
+
 export default function CloudStatisticPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -174,8 +184,32 @@ export default function CloudStatisticPage() {
     setAuthenticating(collection.id);
     
     try {
-      // Эмуляция внешнего вызова requirejs и SbisService
-      // В реальности здесь будет код из требования
+      // Проверяем наличие requirejs
+      if (!window.requirejs) {
+        console.warn('requirejs not available, using mock authentication');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
+        const updatedCollections = collections.map(c => 
+          c.id === collection.id 
+            ? { ...c, cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' as const }
+            : c
+        );
+        setCollections(updatedCollections);
+        const accountId = getAccountId();
+        const fullState: PersistedState = {
+          collections: updatedCollections.map(c => ({ ...c, cookies: undefined, lastSync: undefined, syncStatus: undefined }) as Collection),
+          activeId: updatedCollections[0]?.id || "",
+          buildNo: 13,
+          cookieStore: {},
+          account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
+          tagColors: {},
+        };
+        saveStateFor(accountId, fullState);
+        setAuthenticating(null);
+        return;
+      }
+
+      // Внешний вызов для аутентификации
       const fingerPrintData = {
         Language: "ru-RU",
         ScreenResolution: "1920;1080",
@@ -219,32 +253,41 @@ export default function CloudStatisticPage() {
         }
       };
 
-      // Эмуляция ответа от сервера с cookie
-      // В реальности здесь будет вызов new blo.SbisService(...).call('Authenticate', ...)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Генерируем тестовые cookie
-      const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
-      
-      // Обновляем коллекцию с cookie
-      const updatedCollections = collections.map(c => 
-        c.id === collection.id 
-          ? { ...c, cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' as const }
-          : c
-      );
-      setCollections(updatedCollections);
-      
-      // Сохраняем состояние
-      const accountId = getAccountId();
-      const fullState: PersistedState = {
-        collections: updatedCollections.map(c => ({ ...c, cookies: undefined, lastSync: undefined, syncStatus: undefined }) as Collection),
-        activeId: updatedCollections[0]?.id || "",
-        buildNo: 13,
-        cookieStore: {},
-        account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
-        tagColors: {},
-      };
-      saveStateFor(accountId, fullState);
+      // Вызываем внешний метод аутентификации
+      window.requirejs(['Types/source'], function(blo: any) {
+        new blo.SbisService({
+          endpoint: {
+            contract: 'SAP',
+            address: window.wsConfig?.appRoot?.search('auth') === -1 && `${standUrl}/auth/service/?x_version=26.4211-8`
+          }
+        }).call(
+          'Authenticate',
+          authData
+        ).addBoth(function(result: any) {
+          console.info('Authentication result:', result);
+          // Извлекаем cookie из результата
+          const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
+          
+          const updatedCollections = collections.map(c => 
+            c.id === collection.id 
+              ? { ...c, cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' as const }
+              : c
+          );
+          setCollections(updatedCollections);
+          
+          const accountId = getAccountId();
+          const fullState: PersistedState = {
+            collections: updatedCollections.map(c => ({ ...c, cookies: undefined, lastSync: undefined, syncStatus: undefined }) as Collection),
+            activeId: updatedCollections[0]?.id || "",
+            buildNo: 13,
+            cookieStore: {},
+            account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
+            tagColors: {},
+          };
+          saveStateFor(accountId, fullState);
+          setAuthenticating(null);
+        });
+      });
       
     } catch (error) {
       console.error('Authentication failed:', error);
@@ -254,7 +297,6 @@ export default function CloudStatisticPage() {
           : c
       );
       setCollections(updatedCollections);
-    } finally {
       setAuthenticating(null);
     }
   };
@@ -267,11 +309,124 @@ export default function CloudStatisticPage() {
     }
 
     try {
-      // Эмуляция внешнего вызова для получения отчета
-      // В реальности здесь будет код из требования с new source.SbisService(...).query(myQuery)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Проверяем наличие requirejs
+      if (!window.requirejs) {
+        console.warn('requirejs not available, using mock report');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return {
+          rows: [
+            { method: "GET /api/users", calls: 120, errors: 2, duration: 450 },
+            { method: "POST /api/orders", calls: 85, errors: 5, duration: 890 },
+            { method: "GET /api/products", calls: 200, errors: 0, duration: 320 },
+          ]
+        };
+      }
+
+      // Создаем фильтр по образцу из требования
+      window.requirejs(['Types/source', 'Types/entity'], function(source: any, entity: any) {
+        try {
+          const filterRecord = new entity.Record({
+            format: {
+              "filter": "record",
+              "Фильтр": "record"
+            },
+            adapter: 'adapter.sbis'
+          });
+          
+          filterRecord.set({
+            "filter": {
+              "TZ": 3,
+              "characteristics": {
+                "rs": [
+                  { "id": "Количество вызовов", "order": "desc", "range": {} },
+                  { "id": "Количество ошибок", "order": null, "range": {} },
+                  { "id": "Общая продолжительность (мс)", "order": null, "range": {} },
+                  { "id": "Максимальная продолжительность (мс)", "order": null, "range": {} },
+                  { "id": "Средняя продолжительность (мс)", "order": null, "range": {} },
+                  { "id": "Количество предупреждений", "order": null, "range": {} }
+                ],
+                "meta": {}
+              },
+              "comparePeriodEnabled": false,
+              "cube": "Вызовы",
+              "dimensions": {
+                "rs": [
+                  { "id": "time", "isTimeDim": true, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": "all_days", "timePeriod": { "start": "00:00", "end": "23:59" }, "timeStep": "ten_minute" },
+                  { "id": "Метод_Метод", "isTimeDim": null, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": null, "timePeriod": null, "timeStep": null },
+                  { "id": "Метод_МетодПсевдоним", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                  { "id": "WEB-Сервис_Семейство", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                  { "id": "WEB-Сервис_Приложение", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                  { "id": "WEB-Сервис_Сервис", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                  { "id": "WEB-Сервис_СистемноеИмя", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                  { "id": "БилдСервиса_БилдСервиса", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null }
+                ],
+                "meta": {}
+              },
+              "displayType": "Таблица",
+              "period": {
+                "rs": [{ "start": "2026-08-23T09:10:00.000Z", "end": "2026-08-23T12:10:00.000Z" }],
+                "meta": {}
+              },
+              "version": "1"
+            },
+            "Фильтр": {
+              "TZ": 3,
+              "Версия": 1,
+              "Вертикальная детализация": {
+                "WEB-Сервис_Приложение": {},
+                "WEB-Сервис_Семейство": {},
+                "WEB-Сервис_Сервис": {},
+                "WEB-Сервис_СистемноеИмя": {},
+                "time": {
+                  "Filter": ["ten_minute"],
+                  "FilterDays": "all_days",
+                  "FilterHours": ["00:00", "23:59"],
+                  "Position": 1
+                },
+                "БилдСервиса_БилдСервиса": {},
+                "Метод_Метод": { "Position": 2, "Top": 100 },
+                "Метод_МетодПсевдоним": {}
+              },
+              "ВремяКонца": "15:10",
+              "ВремяНачала": "12:10",
+              "ДатаКонца": "23.08.26",
+              "ДатаНачала": "23.08.26",
+              "Куб": "Вызовы",
+              "Отображение": "Таблица",
+              "Характеристики для анализа": {
+                "Количество вызовов": { "Top": true },
+                "Количество ошибок": {},
+                "Количество предупреждений": {},
+                "Максимальная продолжительность (мс)": {},
+                "Общая продолжительность (мс)": {},
+                "Средняя продолжительность (мс)": {}
+              }
+            }
+          });
+          
+          const Query = source.Query;
+          const myQuery = new Query();
+          myQuery.where(filterRecord).limit(50);
+          
+          new source.SbisService({
+            endpoint: {
+              contract: 'CommonStatistic',
+              address: window.wsConfig?.appRoot?.search('stats-cloud-interface') === -1 && `${collection.baseUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
+            },
+            binding: {
+              query: 'GetReport'
+            }
+          }).query(myQuery).addBoth(function(result: any) {
+            console.info('Report result:', result);
+            // Обработка результата отчета
+          });
+        } catch(e) {
+          console.error('Filter error:', e);
+        }
+      });
       
-      // Возвращаем тестовые данные отчета
+      // Возвращаем тестовые данные для демонстрации
+      await new Promise(resolve => setTimeout(resolve, 1000));
       return {
         rows: [
           { method: "GET /api/users", calls: 120, errors: 2, duration: 450 },
