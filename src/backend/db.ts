@@ -118,6 +118,14 @@ export const db = {
   saveAccountState<T>(accountId: string, state: T) {
     write(K.accountState(accountId), state);
   },
+
+  /* ---------- user settings ---------- */
+  loadUserSettings<T>(accountId: string): T | null {
+    return read<T | null>(`${NS}:account:${accountId}:settings`, null);
+  },
+  saveUserSettings<T>(accountId: string, settings: T) {
+    write(`${NS}:account:${accountId}:settings`, settings);
+  },
 };
 
 /* ---------- синхронизация вкладок («realtime» в LOCAL-режиме) ---------- */

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Briefcase, Circle, LogOut, Moon, Sun } from "lucide-react";
+import { Briefcase, Circle, LogOut, Moon, Sun, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { Account } from "../types";
 import { initials } from "../types";
 
@@ -11,7 +12,8 @@ const STATUS = {
 type StatusKey = keyof typeof STATUS;
 const PHOTO = "https://image.qwenlm.ai/generated-images/719096e9-629a-4507-8ec7-7f5bb8a5ae5e/_result.png";
 
-export default function UserMenu({ account, onLogout, onWorkspace }: { account: Account; onLogout: () => void; onWorkspace: () => void }) {
+export default function UserMenu({ account, onLogout }: { account: Account; onLogout: () => void }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<StatusKey>(() => {
     const v = localStorage.getItem("kadr-user-status");
@@ -32,6 +34,12 @@ export default function UserMenu({ account, onLogout, onWorkspace }: { account: 
   }, [open]);
 
   const s = STATUS[status];
+  
+  const handleSettingsClick = () => {
+    setOpen(false);
+    navigate("/settings");
+  };
+
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((v) => !v)} title={`${account.name} · ${s.label}`}
@@ -75,9 +83,9 @@ export default function UserMenu({ account, onLogout, onWorkspace }: { account: 
             </div>
           </div>
           <div className="my-2.5 h-px bg-line" />
-          <button onClick={() => { onWorkspace(); setOpen(false); }}
+          <button onClick={handleSettingsClick}
             className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12.5px] font-bold text-fog transition-all hover:bg-raised">
-            <Sun size={15} className="text-mist" />Настройки места
+            <Settings size={15} className="text-mist" />Настройки
           </button>
           {confirmOut ? (
             <div className="mt-1 rounded-lg border border-coral/40 bg-coral/[0.07] p-2.5">
