@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Collection, AutoTest, CollectionDraft, Person } from "../types";
+import type { Collection, AutoTest, Person } from "../types";
 import { uid, ROOT_SUITE } from "../types";
 import { backend, type PublicUser } from "../backend";
 import type { DbSession } from "../backend/db";
 import CollectionModal from "../components/CollectionModal";
 import NewTestModal from "../components/NewTestModal";
 import type { NewTestData } from "../components/NewTestModal";
+import TestBuilder from "../components/TestBuilder";
+import TagPicker from "../components/TagPicker";
+import Inspector from "../components/Inspector";
 
 export default function WorkspacePage() {
   const navigate = useNavigate();
@@ -19,6 +22,10 @@ export default function WorkspacePage() {
   const [showCollectionModal, setShowCollectionModal] = useState<{ mode: "create" } | { mode: "edit"; id: string } | null>(null);
   const [showTestModal, setShowTestModal] = useState(false);
   const [initialSuite, setInitialSuite] = useState<string | null>(null);
+  
+  // Режимы просмотра
+  const [viewMode, setViewMode] = useState<"list" | "builder" | "inspector">("list");
+  const [activeTestId, setActiveTestId] = useState<string | null>(null);
   
   // Заглушки для людей и тегов
   const mockPeople: Person[] = [
@@ -84,6 +91,7 @@ export default function WorkspacePage() {
   }
 
   const activeCollection = collections.find(c => c.id === activeId) || (collections.length > 0 ? collections[0] : null);
+  const activeTest = activeCollection?.tests.find(t => t.id === activeTestId);
 
   // Экран создания первой коллекции
   if (collections.length === 0) {
@@ -133,6 +141,42 @@ export default function WorkspacePage() {
     );
   }
 
+  // Режим редактора теста (TestBuilder)
+  if (viewMode === "builder" && activeTest && activeCollection) {
+    return (
+      <TestBuilder
+        test={activeTest}
+        col={activeCollection}
+        onClose={() => {
+          setViewMode("list");
+          setActiveTestId(null);
+        }}
+        onSave={(updatedTest) => {
+          setCollections(collections.map(c => 
+            c.id === activeCollection.id 
+              ? { ...c, tests: c.tests.map(t => t.id === updatedTest.id ? updatedTest : t) }
+              : c
+          ));
+          setViewMode("list");
+          setActiveTestId(null);
+        }}
+      />
+    );
+  }
+
+  // Режим инспектора (Inspector)
+  if (viewMode === "inspector" && activeTest) {
+    return (
+      <Inspector
+        test={activeTest}
+        onClose={() => {
+          setViewMode("list");
+          setActiveTestId(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen flex-col bg-deep text-fog">
       {/* Шапка */}
@@ -178,7 +222,11 @@ export default function WorkspacePage() {
             {collections.map(col => (
               <div
                 key={col.id}
-                onClick={() => setActiveId(col.id)}
+                onClick={() => {
+                  setActiveId(col.id);
+                  setViewMode("list");
+                  setActiveTestId(null);
+                }}
                 className={`flex cursor-pointer items-center gap-3 border-b border-white/5 px-4 py-3 transition-colors ${
                   activeId === col.id ? "bg-white/10" : "hover:bg-white/5"
                 }`}
@@ -188,6 +236,16 @@ export default function WorkspacePage() {
                   style={{ backgroundColor: col.color }}
                 ></div>
                 <span className="flex-1 truncate text-[13px] font-semibold">{col.name}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCollectionModal({ mode: "edit", id: col.id });
+                  }}
+                  className="rounded p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
+                  title="Редактировать коллекцию"
+                >
+                  <i className="fas fa-cog text-[11px] text-mist"></i>
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -246,13 +304,31 @@ export default function WorkspacePage() {
                     {activeCollection.tests.map(test => (
                       <div
                         key={test.id}
-                        className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-3"
+                        onClick={() => {
+                          setActiveTestId(test.id);
+                          setViewMode("builder");
+                        }}
+                        className="group flex cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-3 transition-all hover:border-amber/50 hover:bg-white/10"
                       >
-                        <div>
+                        <div className="flex-1">
                           <div className="text-[13px] font-bold">{test.name}</div>
                           <div className="text-[11px] text-mist">{test.method} {test.path}</div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {test.tags && test.tags.length > 0 && (
+                            <div className="hidden gap-1 md:flex">
+                              {test.tags.slice(0, 3).map((tag, i) => (
+                                <span key={i} className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-mist">
+                                  #{tag}
+                                </span>
+                              ))}
+                              {test.tags.length > 3 && (
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-mist">
+                                  +{test.tags.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${
                             test.status === "passed" ? "bg-green-500/20 text-green-400" :
                             test.status === "failed" ? "bg-red-500/20 text-red-400" :
@@ -260,6 +336,17 @@ export default function WorkspacePage() {
                           }`}>
                             {test.status || "new"}
                           </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTestId(test.id);
+                              setViewMode("inspector");
+                            }}
+                            className="rounded p-1.5 opacity-0 transition-all hover:bg-white/10 group-hover:opacity-100"
+                            title="Инспектор"
+                          >
+                            <i className="fas fa-chart-bar text-[11px] text-mist"></i>
+                          </button>
                         </div>
                       </div>
                     ))}
