@@ -1,22 +1,29 @@
 ```
+# Dependencies
+node_modules/
+
 # Build artifacts
 dist/
 build/
 
-# Dependencies
-node_modules/
+# Vite specific
+.node_modules/.vite/
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
 
 # Editors
 .vscode/
 .idea/
-
-# Logs
-*.log
 
 # Python
 __pycache__/
@@ -27,40 +34,28 @@ __pycache__/
 # Compiled files
 *.o
 *.obj
+*.exe
+*.dll
 *.so
 *.a
-*.dll
-*.exe
 *.out
 
-# Temp files
-*.tmp
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Testing
-.coverage
+# Coverage
 coverage/
 htmlcov/
-.pytest_cache/
+.coverage
+
+# MyPy
 .mypy_cache/
 
-# Package managers
-.npm/
-.yarn/
-.pnpm-store/
-.bazel/
-.buck/
-.dune/
-.eggs/
-.venv/
-venv/
-pip-log.txt
-pip-delete-this-directory.txt
+# PyTest
+.pytest_cache/
+
+# Gradle
+.gradle/
+
+# Target
+target/
 
 # Compressed files
 *.zip
