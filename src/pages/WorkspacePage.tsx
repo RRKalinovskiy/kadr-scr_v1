@@ -1,441 +1,352 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import type { Collection, AutoTest, Person } from "../types";
-import { uid, ROOT_SUITE } from "../types";
-import { backend, type PublicUser } from "../backend";
-import type { DbSession } from "../backend/db";
-import CollectionModal from "../components/CollectionModal";
-import NewTestModal from "../components/NewTestModal";
-import type { NewTestData } from "../components/NewTestModal";
-import TestBuilder from "../components/TestBuilder";
-import TagPicker from "../components/TagPicker";
-import Inspector from "../components/Inspector";
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Plus, Trash2, Play, Edit, Folder, FileCode, LogOut, 
+  CheckCircle, AlertCircle, Clock, Tag
+} from 'lucide-react';
+import CollectionModal from '../components/CollectionModal';
+import NewTestModal from '../components/NewTestModal';
+import TestBuilder from '../components/TestBuilder';
+import Inspector from '../components/Inspector';
+import type { Collection } from '../types';
+import { backend } from "../backend";
 
-export default function WorkspacePage() {
+const WorkspacePage: React.FC = () => {
   const navigate = useNavigate();
-  const [authed, setAuthed] = useState<{ user: PublicUser; session: DbSession } | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
   
-  // Модальные окна
-  const [showCollectionModal, setShowCollectionModal] = useState<{ mode: "create" } | { mode: "edit"; id: string } | null>(null);
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [initialSuite, setInitialSuite] = useState<string | null>(null);
-  
-  // Режимы просмотра
-  const [viewMode, setViewMode] = useState<"list" | "builder" | "inspector">("list");
-  const [activeTestId, setActiveTestId] = useState<string | null>(null);
-  
-  // Заглушки для людей и тегов
-  const mockPeople: Person[] = [
-    { id: "u1", name: "Вы", avatar: "" },
-    { id: "u2", name: "Коллега", avatar: "" },
-  ];
-  const [tagColors, setTagColors] = useState<Record<string, string>>({});
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'builder' | 'inspector'>('list');
+  const [activeTest, setActiveTest] = useState<any | null>(null);
 
-  // Восстановление сессии
+  // Load state on mount
   useEffect(() => {
-    backend.restore().then((result) => {
-      if (result && result.user && result.session) {
-        setAuthed(result);
-      } else {
-        navigate("/auth");
-      }
-    }).catch(() => navigate("/auth"));
-  }, [navigate]);
-
-  // Загрузка коллекций после аутентификации
-  useEffect(() => {
-    if (!authed?.user?.accountId) return;
-    
-    try {
-      const saved = localStorage.getItem(`kadr_state_${authed.user.accountId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const cols = Array.isArray(parsed.collections) ? parsed.collections : [];
-        setCollections(cols);
-        setActiveId(parsed.activeId || (cols.length > 0 ? cols[0].id : null));
-      }
-    } catch (e) {
-      console.error("Ошибка загрузки состояния:", e);
-    } finally {
-      setLoading(false);
+    const state = backend.loadState();
+    setCollections(state.collections);
+    if (state.collections.length > 0) {
+      setActiveCollectionId(state.collections[0].id);
     }
-  }, [authed]);
+  }, []);
 
-  // Автосохранение
+  // Save state on change
   useEffect(() => {
-    if (!authed?.user?.accountId) return;
-    const timeout = setTimeout(() => {
-      localStorage.setItem(
-        `kadr_state_${authed.user.accountId}`,
-        JSON.stringify({ collections, activeId })
-      );
-    }, 500);
-    return () => clearTimeout(timeout);
-  }, [collections, activeId, authed]);
+    backend.saveState({ collections });
+  }, [collections]);
 
-  if (loading) {
-    return (
-      <div className="grid h-screen w-screen place-items-center bg-deep text-fog">
-        <div className="text-center">
-          <div className="font-display text-[18px] font-bold">Загрузка...</div>
-        </div>
-      </div>
+  const activeCollection = collections.find(c => c.id === activeCollectionId) || null;
+  const tests = activeCollection ? activeCollection.tests : [];
+
+  const handleCreateCollection = (data: { name: string; url: string; color: string }) => {
+    const newCollection: Collection = {
+      id: Date.now().toString(),
+      name: data.name,
+      baseUrl: data.url,
+      color: data.color,
+      tests: [],
+      createdAt: new Date().toISOString(),
+    };
+    setCollections([...collections, newCollection]);
+    setActiveCollectionId(newCollection.id);
+    setIsCollectionModalOpen(false);
+  };
+
+  const handleUpdateCollection = (data: { name: string; url: string; color: string }) => {
+    if (!editingCollection) return;
+    const updated = collections.map(c => 
+      c.id === editingCollection.id 
+        ? { ...c, name: data.name, baseUrl: data.url, color: data.color } 
+        : c
     );
-  }
+    setCollections(updated);
+    setEditingCollection(null);
+    setIsCollectionModalOpen(false);
+  };
 
-  if (!authed) {
-    return null;
-  }
+  const handleDeleteCollection = (id: string) => {
+    if (confirm('Вы уверены? Все тесты в этой коллекции будут удалены.')) {
+      const filtered = collections.filter(c => c.id !== id);
+      setCollections(filtered);
+      if (activeCollectionId === id) {
+        setActiveCollectionId(filtered.length > 0 ? filtered[0].id : null);
+      }
+    }
+  };
 
-  const activeCollection = collections.find(c => c.id === activeId) || (collections.length > 0 ? collections[0] : null);
-  const activeTest = activeCollection?.tests.find(t => t.id === activeTestId);
+  const handleCreateTest = (data: { name: string; path: string }) => {
+    if (!activeCollectionId) return;
+    
+    const newTest: any = {
+      id: Date.now().toString(),
+      collectionId: activeCollectionId,
+      name: data.name,
+      path: data.path,
+      status: 'created',
+      tags: [],
+      steps: [],
+      viewports: [{ id: '1', name: 'Desktop', width: 1920, height: 1080 }],
+      executors: [{ id: '1', name: 'Local Chrome', type: 'local' }],
+      createdAt: new Date().toISOString(),
+      lastRun: null,
+    };
 
-  // Экран создания первой коллекции
-  if (collections.length === 0) {
-    return (
-      <div className="flex h-screen w-screen flex-col bg-deep text-fog">
-        {/* Шапка */}
-        <header className="flex h-14 items-center justify-between border-b border-white/10 px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber font-bold text-[#17211d]">К</div>
-            <span className="font-display text-[16px] font-bold">КАДР</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate("/cloud-statistic")}
-              className="text-[13px] font-semibold text-mist hover:text-fog"
-            >
-              Отчеты
-            </button>
-            <button
-              onClick={() => {
-                backend.logout();
-                navigate("/auth");
-              }}
-              className="text-[13px] font-semibold text-mist hover:text-fog"
-            >
-              Выйти
-            </button>
-          </div>
-        </header>
+    const updatedCollections = collections.map(c => {
+      if (c.id === activeCollectionId) {
+        return { ...c, tests: [...c.tests, newTest] };
+      }
+      return c;
+    });
 
-        {/* Центральная часть */}
-        <div className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <div className="mb-2 text-[28px] font-bold text-fog">Нет коллекций</div>
-            <p className="mb-6 max-w-[320px] text-[13px] font-semibold leading-relaxed text-mist">
-              Создайте первую коллекцию для начала работы с тестами
-            </p>
-            <button 
-              onClick={() => setShowCollectionModal({ mode: "create" })}
-              className="inline-flex items-center gap-2 rounded-lg bg-amber px-5 py-2.5 text-[13px] font-extrabold text-[#17211d] shadow-[0_2px_12px_rgba(255,180,84,0.3)] transition-all hover:brightness-110 active:scale-95"
-            >
-              Создать коллекцию
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    setCollections(updatedCollections);
+    setIsTestModalOpen(false);
+    // Open inspector for the new test
+    setActiveTest(newTest);
+    setViewMode('inspector');
+  };
 
-  // Режим редактора теста (TestBuilder)
-  if (viewMode === "builder" && activeTest && activeCollection) {
-    return (
-      <TestBuilder
-        test={activeTest}
-        col={activeCollection}
-        onClose={() => {
-          setViewMode("list");
-          setActiveTestId(null);
-        }}
-        onSave={(updatedTest) => {
-          setCollections(collections.map(c => 
-            c.id === activeCollection.id 
-              ? { ...c, tests: c.tests.map(t => t.id === updatedTest.id ? updatedTest : t) }
-              : c
-          ));
-          setViewMode("list");
-          setActiveTestId(null);
-        }}
-      />
-    );
-  }
+  const handleSaveTest = (updatedTest: any) => {
+    const updatedCollections = collections.map(c => {
+      if (c.id === updatedTest.collectionId) {
+        return {
+          ...c,
+          tests: c.tests.map(t => t.id === updatedTest.id ? updatedTest : t)
+        };
+      }
+      return c;
+    });
+    setCollections(updatedCollections);
+    setActiveTest(updatedTest);
+    setViewMode('inspector');
+  };
 
-  // Режим инспектора (Inspector)
-  if (viewMode === "inspector" && activeTest) {
-    return (
-      <Inspector
-        test={activeTest}
-        onClose={() => {
-          setViewMode("list");
-          setActiveTestId(null);
-        }}
-      />
-    );
-  }
+  const handleRunTest = (test: any) => {
+    alert(`Запуск теста: ${test.name}\n(Логика запуска будет реализована отдельно)`);
+  };
+
+  const openEditCollection = (e: React.MouseEvent, collection: Collection) => {
+    e.stopPropagation();
+    setEditingCollection(collection);
+    setIsCollectionModalOpen(true);
+  };
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-deep text-fog">
-      {/* Шапка */}
-      <header className="flex h-14 items-center justify-between border-b border-white/10 px-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber font-bold text-[#17211d]">К</div>
-          <span className="font-display text-[16px] font-bold">КАДР</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate("/cloud-statistic")}
-            className="text-[13px] font-semibold text-mist hover:text-fog"
+    <div className="flex h-screen bg-deep text-fog font-body overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-64 bg-panel border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h2 className="font-display font-bold text-lg text-fog">Коллекции</h2>
+          <button 
+            onClick={() => { setEditingCollection(null); setIsCollectionModalOpen(true); }}
+            className="p-2 hover:bg-raised rounded-md transition-colors text-mist hover:text-fog"
+            title="Создать коллекцию"
           >
-            Отчеты
-          </button>
-          <button
-            onClick={() => {
-              backend.logout();
-              navigate("/auth");
-            }}
-            className="text-[13px] font-semibold text-mist hover:text-fog"
-          >
-            Выйти
+            <Plus size={18} />
           </button>
         </div>
-      </header>
-
-      {/* Основная область */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Левая панель - Список коллекций */}
-        <aside className="flex w-64 flex-col border-r border-white/10">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-            <span className="text-[12px] font-bold uppercase tracking-wider text-mist">Коллекции</span>
-            <button
-              onClick={() => setShowCollectionModal({ mode: "create" })}
-              className="rounded p-1 hover:bg-white/10"
-              title="Добавить коллекцию"
-            >
-              <i className="fas fa-plus text-[12px] text-mist"></i>
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {collections.map(col => (
+        
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {collections.length === 0 ? (
+            <div className="text-center py-8 px-4">
+              <p className="text-mist text-sm mb-2">Нет коллекций</p>
+              <p className="text-mist text-xs opacity-70">Создайте первую коллекцию, чтобы начать работу</p>
+            </div>
+          ) : (
+            collections.map(c => (
               <div
-                key={col.id}
-                onClick={() => {
-                  setActiveId(col.id);
-                  setViewMode("list");
-                  setActiveTestId(null);
-                }}
-                className={`flex cursor-pointer items-center gap-3 border-b border-white/5 px-4 py-3 transition-colors ${
-                  activeId === col.id ? "bg-white/10" : "hover:bg-white/5"
+                key={c.id}
+                onClick={() => { setActiveCollectionId(c.id); setViewMode('list'); }}
+                className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
+                  activeCollectionId === c.id 
+                    ? 'bg-raised text-fog shadow-sm' 
+                    : 'text-mist hover:bg-raised/50 hover:text-fog'
                 }`}
               >
-                <div
-                  className="h-3 w-3 rounded-full"
-                  style={{ backgroundColor: col.color }}
-                ></div>
-                <span className="flex-1 truncate text-[13px] font-semibold">{col.name}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowCollectionModal({ mode: "edit", id: col.id });
-                  }}
-                  className="rounded p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
-                  title="Редактировать коллекцию"
-                >
-                  <i className="fas fa-cog text-[11px] text-mist"></i>
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCollections(collections.filter(c => c.id !== col.id));
-                    if (activeId === col.id) {
-                      setActiveId(collections.length > 1 ? collections.find(c => c.id !== col.id)?.id || null : null);
-                    }
-                  }}
-                  className="rounded p-1 opacity-0 transition-opacity hover:bg-red-500/20 group-hover:opacity-100"
-                  title="Удалить коллекцию"
-                >
-                  <i className="fas fa-trash text-[11px] text-mist"></i>
-                </button>
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        {/* Центральная панель - Список тестов */}
-        <main className="flex flex-1 flex-col">
-          {activeCollection ? (
-            <>
-              <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-4 w-4 rounded-full"
-                    style={{ backgroundColor: activeCollection.color }}
-                  ></div>
-                  <h2 className="text-[18px] font-bold">{activeCollection.name}</h2>
-                  <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] font-bold text-mist">
-                    {activeCollection.tests.length} тестов
-                  </span>
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div 
+                    className="w-2 h-2 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: c.color }} 
+                  />
+                  <span className="truncate font-medium text-sm">{c.name}</span>
                 </div>
-                <button
-                  onClick={() => {
-                    setInitialSuite(ROOT_SUITE);
-                    setShowTestModal(true);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-[12px] font-extrabold text-[#17211d] transition-all hover:brightness-110"
-                >
-                  <i className="fas fa-plus"></i>
-                  Новый тест
-                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={(e) => openEditCollection(e, c)}
+                    className="p-1 hover:bg-deep rounded text-mist hover:text-fog"
+                  >
+                    <Edit size={14} />
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDeleteCollection(c.id); }}
+                    className="p-1 hover:bg-red-900/30 rounded text-mist hover:text-red-400"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
-              
-              <div className="flex-1 overflow-y-auto p-6">
-                {activeCollection.tests.length === 0 ? (
-                  <div className="grid h-full place-items-center">
-                    <div className="text-center">
-                      <div className="mb-2 text-[16px] font-bold text-mist">Нет тестов</div>
-                      <p className="text-[12px] text-mist/70">Создайте первый тест в этой коллекции</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {activeCollection.tests.map(test => (
-                      <div
-                        key={test.id}
-                        onClick={() => {
-                          setActiveTestId(test.id);
-                          setViewMode("builder");
-                        }}
-                        className="group flex cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-3 transition-all hover:border-amber/50 hover:bg-white/10"
-                      >
-                        <div className="flex-1">
-                          <div className="text-[13px] font-bold">{test.name}</div>
-                          <div className="text-[11px] text-mist">{test.method} {test.path}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {test.tags && test.tags.length > 0 && (
-                            <div className="hidden gap-1 md:flex">
-                              {test.tags.slice(0, 3).map((tag, i) => (
-                                <span key={i} className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-mist">
-                                  #{tag}
-                                </span>
-                              ))}
-                              {test.tags.length > 3 && (
-                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-mist">
-                                  +{test.tags.length - 3}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                            test.status === "passed" ? "bg-green-500/20 text-green-400" :
-                            test.status === "failed" ? "bg-red-500/20 text-red-400" :
-                            "bg-gray-500/20 text-gray-400"
-                          }`}>
-                            {test.status || "new"}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveTestId(test.id);
-                              setViewMode("inspector");
-                            }}
-                            className="rounded p-1.5 opacity-0 transition-all hover:bg-white/10 group-hover:opacity-100"
-                            title="Инспектор"
-                          >
-                            <i className="fas fa-chart-bar text-[11px] text-mist"></i>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            ))
+          )}
+        </div>
+
+        <div className="p-4 border-t border-border">
+          <button 
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-mist hover:text-fog transition-colors text-sm w-full"
+          >
+            <LogOut size={16} />
+            <span>На главную</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-w-0 bg-deep">
+        {viewMode === 'list' && (
+          <>
+            {/* Header */}
+            <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-panel/50 backdrop-blur-sm">
+              <div className="flex items-center gap-4">
+                <h1 className="font-display font-bold text-xl text-fog">
+                  {activeCollection ? activeCollection.name : 'Выберите коллекцию'}
+                </h1>
+                {activeCollection && (
+                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-raised text-mist border border-border">
+                    {tests.length} тестов
+                  </span>
                 )}
               </div>
-            </>
-          ) : (
-            <div className="grid h-full place-items-center">
-              <div className="text-center text-mist">Выберите коллекцию</div>
-            </div>
-          )}
-        </main>
-      </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsTestModalOpen(true)}
+                  disabled={!activeCollection}
+                  className="flex items-center gap-2 px-4 py-2 bg-ember hover:bg-orange-500 disabled:bg-mist/20 disabled:text-mist/50 text-white rounded-lg font-medium transition-all shadow-sm"
+                >
+                  <Plus size={18} />
+                  <span>Новый тест</span>
+                </button>
+              </div>
+            </header>
 
-      {/* Модальное окно создания/редактирования коллекции */}
-      {showCollectionModal && (
+            {/* Tests List */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {!activeCollection ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                  <Folder size={64} className="mb-4 text-mist" />
+                  <h3 className="text-xl font-display font-semibold text-fog mb-2">Коллекция не выбрана</h3>
+                  <p className="text-mist max-w-md">Выберите коллекцию слева или создайте новую, чтобы увидеть список тестов.</p>
+                </div>
+              ) : tests.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                  <FileCode size={64} className="mb-4 text-mist" />
+                  <h3 className="text-xl font-display font-semibold text-fog mb-2">Список пуст</h3>
+                  <p className="text-mist max-w-md mb-6">В этой коллекции пока нет тестов. Создайте первый тест, чтобы начать работу.</p>
+                  <button
+                    onClick={() => setIsTestModalOpen(true)}
+                    className="flex items-center gap-2 px-6 py-3 bg-ember hover:bg-orange-500 text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-ember/20"
+                  >
+                    <Plus size={20} />
+                    <span>Создать первый тест</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {tests.map((test: any) => (
+                    <div
+                      key={test.id}
+                      onClick={() => { setActiveTest(test); setViewMode('inspector'); }}
+                      className="group bg-panel border border-border rounded-xl p-4 hover:border-ember/50 hover:shadow-lg hover:shadow-ember/5 transition-all cursor-pointer flex flex-col h-48"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-2 rounded-lg ${
+                            test.status === 'passed' ? 'bg-sage/20 text-sage' :
+                            test.status === 'failed' ? 'bg-ember/20 text-ember' :
+                            'bg-mist/20 text-mist'
+                          }`}>
+                            {test.status === 'passed' ? <CheckCircle size={20} /> :
+                             test.status === 'failed' ? <AlertCircle size={20} /> :
+                             <Clock size={20} />}
+                          </div>
+                          <h3 className="font-display font-semibold text-fog truncate pr-2">{test.name}</h3>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1 overflow-hidden mb-3">
+                        <p className="text-xs text-mist font-mono bg-deep/50 p-2 rounded border border-border truncate">
+                          {test.path}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/50">
+                        <div className="flex items-center gap-2">
+                          {test.tags && test.tags.slice(0, 3).map((tag: string, i: number) => (
+                            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-raised text-mist border border-border">
+                              {tag}
+                            </span>
+                          ))}
+                          {test.tags && test.tags.length > 3 && (
+                            <span className="text-[10px] text-mist">+{test.tags.length - 3}</span>
+                          )}
+                        </div>
+                        <button 
+                          className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-ember/20 hover:text-ember rounded transition-all"
+                          title="Быстрый запуск"
+                          onClick={(e) => { e.stopPropagation(); handleRunTest(test); }}
+                        >
+                          <Play size={14} fill="currentColor" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {viewMode === 'inspector' && activeTest && (
+          <Inspector 
+            test={activeTest} 
+            onBack={() => setViewMode('list')}
+            onEdit={() => setViewMode('builder')}
+            onRun={() => handleRunTest(activeTest)}
+          />
+        )}
+
+        {viewMode === 'builder' && activeTest && (
+          <TestBuilder 
+            test={activeTest} 
+            onSave={handleSaveTest}
+            onCancel={() => setViewMode('inspector')}
+          />
+        )}
+      </main>
+
+      {/* Modals */}
+      {isCollectionModalOpen && (
         <CollectionModal
-          state={showCollectionModal}
-          col={showCollectionModal.mode === "edit" && activeCollection ? activeCollection : null}
-          cookieStore={{}}
-          authState={undefined}
-          onCheckAuth={undefined}
-          onClose={() => setShowCollectionModal(null)}
-          onSave={(id, draft) => {
-            if (id) {
-              // Редактирование
-              setCollections(collections.map(c => c.id === id ? { ...c, ...draft } as Collection : c));
-            } else {
-              // Создание новой
-              const newCol: Collection = {
-                id: uid(),
-                name: draft.name,
-                color: draft.color,
-                screenUrl: draft.screenUrl,
-                browser: draft.browser,
-                threshold: draft.threshold,
-                delayMs: draft.delayMs,
-                notify: draft.notify,
-                auth: draft.auth === "none" ? { enabled: false } : { enabled: true },
-                authLogin: draft.authLogin,
-                authPassword: draft.authPassword,
-                authKey: draft.authKey,
-                baseUrl: "",
-                viewports: ["1440"],
-                baseline: "main",
-                tests: [],
-                tree: [],
-              };
-              setCollections([...collections, newCol]);
-              setActiveId(newCol.id);
-            }
-            setShowCollectionModal(null);
-          }}
+          isOpen={true}
+          onClose={() => { setIsCollectionModalOpen(false); setEditingCollection(null); }}
+          onSubmit={editingCollection ? handleUpdateCollection : handleCreateCollection}
+          initialData={editingCollection ? {
+            name: editingCollection.name,
+            url: editingCollection.baseUrl,
+            color: editingCollection.color
+          } : undefined}
+          isEditing={!!editingCollection}
         />
       )}
 
-      {/* Модальное окно создания теста */}
-      {activeCollection && (
+      {isTestModalOpen && (
         <NewTestModal
-          open={showTestModal}
-          col={activeCollection}
-          people={mockPeople}
-          initialSuite={initialSuite}
-          tagColors={tagColors}
-          onTagColor={(tag, color) => setTagColors({ ...tagColors, [tag]: color })}
-          onClose={() => setShowTestModal(false)}
-          onCreate={(data: NewTestData) => {
-            const newTest: AutoTest = {
-              id: uid(),
-              name: data.name,
-              path: data.path,
-              method: "GET",
-              status: "new",
-              suite: data.suite,
-              assignee: data.assignee,
-              viewports: data.viewports,
-              tags: data.tags,
-              steps: [],
-            };
-            setCollections(collections.map(c => 
-              c.id === activeCollection.id 
-                ? { ...c, tests: [...c.tests, newTest] }
-                : c
-            ));
-            setShowTestModal(false);
-          }}
+          isOpen={true}
+          onClose={() => setIsTestModalOpen(false)}
+          onSubmit={handleCreateTest}
         />
       )}
     </div>
   );
-}
+};
+
+export default WorkspacePage;
