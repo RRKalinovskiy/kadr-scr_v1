@@ -6,6 +6,7 @@ import WorkspacePage from "./pages/WorkspacePage";
 import CloudStatisticPage from "./pages/CloudStatisticPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
+import TeamPage from "./pages/TeamPage";
 
 function PageTitleManager() {
   const location = useLocation();
@@ -17,6 +18,9 @@ function PageTitleManager() {
         break;
       case "/workspace":
         document.title = "Рабочее место";
+        break;
+      case "/team":
+        document.title = "Команда";
         break;
       case "/cloud-statistic":
         document.title = "Статистика облака";
@@ -40,6 +44,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<LoginPage />} />
         <Route path="/workspace" element={<WorkspacePage />} />
+        <Route path="/team" element={<TeamPage />} />
         <Route path="/cloud-statistic" element={<CloudStatisticPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />

@@ -284,7 +284,7 @@ const WorkspacePage: React.FC = () => {
             {/* Tabs */}
             <nav className="flex items-center gap-1">
               <button
-                onClick={() => {}}
+                onClick={() => navigate("/team")}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-raised text-fog font-semibold text-sm transition-colors"
               >
                 <Users size={16} />
