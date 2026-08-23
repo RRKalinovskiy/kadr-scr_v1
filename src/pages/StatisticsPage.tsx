@@ -17,7 +17,7 @@ interface ExtendedCollection extends Collection {
 interface ReportFilter {
   id: string;
   name: string;
-  filter: Record<string, any>;
+  filterJson: string; // JSON строка для фильтра
   createdAt: number;
 }
 
@@ -563,31 +563,7 @@ export default function CloudStatisticPage() {
     const newFilter: ReportFilter = {
       id: Date.now().toString(),
       name: `Фильтр ${settings.reportFilters.length + 1}`,
-      filter: {
-        TZ: 3,
-        characteristics: {
-          rs: [
-            { id: "Количество вызовов", order: "desc", range: {} },
-            { id: "Количество ошибок", order: null, range: {} },
-          ],
-          meta: {}
-        },
-        comparePeriodEnabled: false,
-        cube: "Вызовы",
-        dimensions: {
-          rs: [
-            { id: "time", isTimeDim: true, isAggregated: true, top: 100, mode: "all_days", timePeriod: { start: "00:00", end: "23:59" }, timeStep: "ten_minute" },
-            { id: "Метод_Метод", isTimeDim: null, isAggregated: true, top: 100 },
-          ],
-          meta: {}
-        },
-        displayType: "Таблица",
-        period: {
-          rs: [{ start: new Date().toISOString(), end: new Date().toISOString() }],
-          meta: {}
-        },
-        version: "1"
-      },
+      filterJson: '',
       createdAt: Date.now(),
     };
     const newSettings = { ...settings, reportFilters: [...settings.reportFilters, newFilter] };
@@ -988,36 +964,61 @@ export default function CloudStatisticPage() {
                         <p className="text-xs text-dim mt-1">Добавьте первый фильтр для начала работы</p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {settings.reportFilters.map((filter) => (
                           <div
                             key={filter.id}
-                            className="flex items-center gap-3 p-3 bg-deep/50 rounded-lg border border-border group"
+                            className="p-4 bg-deep/50 rounded-lg border border-border space-y-3 group"
                           >
-                            <input
-                              type="text"
-                              value={filter.name}
-                              onChange={(e) => handleRenameFilter(filter.id, e.target.value)}
-                              className="flex-1 bg-transparent border-none text-[13px] text-fog focus:outline-none focus:ring-1 focus:ring-amber rounded px-2 py-1"
-                            />
-                            <button
-                              onClick={() => handleSetDefaultFilter(filter.id)}
-                              className={`text-[10px] px-2 py-1 rounded transition-colors ${
-                                settings.defaultFilterId === filter.id
-                                  ? 'bg-sage/20 text-sage font-semibold'
-                                  : 'bg-raised text-mist hover:text-fog'
-                              }`}
-                            >
-                              {settings.defaultFilterId === filter.id ? 'По умолчанию' : 'Сделать основным'}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteFilter(filter.id)}
-                              className="p-1.5 hover:bg-ember/20 rounded text-mist hover:text-ember opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                              </svg>
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <div className="w-32">
+                                <label className="block text-[10px] font-bold text-mist uppercase mb-1">Имя</label>
+                                <input
+                                  type="text"
+                                  value={filter.name}
+                                  onChange={(e) => handleRenameFilter(filter.id, e.target.value)}
+                                  placeholder="Имя фильтра"
+                                  className="w-full bg-deep border border-line rounded px-2 py-1.5 text-[13px] text-fog focus:outline-none focus:ring-1 focus:ring-amber"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-mist uppercase mb-1">Фильтр (JSON)</label>
+                                <input
+                                  type="text"
+                                  value={filter.filterJson}
+                                  onChange={(e) => {
+                                    const newSettings = {
+                                      ...settings,
+                                      reportFilters: settings.reportFilters.map(f => f.id === filter.id ? { ...f, filterJson: e.target.value } : f),
+                                    };
+                                    saveSettings(newSettings);
+                                  }}
+                                  placeholder='{"filter": {...}, "Фильтр": {...}}'
+                                  className="w-full bg-deep border border-line rounded px-2 py-1.5 text-[12px] text-fog focus:outline-none focus:ring-1 focus:ring-amber font-mono"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 pt-2 border-t border-line">
+                              <button
+                                onClick={() => handleSetDefaultFilter(filter.id)}
+                                className={`text-[10px] px-2 py-1 rounded transition-colors ${
+                                  settings.defaultFilterId === filter.id
+                                    ? 'bg-sage/20 text-sage font-semibold'
+                                    : 'bg-raised text-mist hover:text-fog'
+                                }`}
+                              >
+                                {settings.defaultFilterId === filter.id ? 'По умолчанию' : 'Сделать основным'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFilter(filter.id)}
+                                className="flex items-center gap-1 text-[10px] px-2 py-1 hover:bg-ember/20 rounded text-mist hover:text-ember transition-colors"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                                </svg>
+                                Удалить
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
