@@ -332,15 +332,17 @@ const WorkspacePage: React.FC = () => {
       {/* Modals */}
       {isCollectionModalOpen && (
         <CollectionModal
-          isOpen={true}
+          state={editingCollection ? { mode: "edit", id: editingCollection.id } : { mode: "create" }}
+          col={editingCollection}
+          cookieStore={{}}
           onClose={() => { setIsCollectionModalOpen(false); setEditingCollection(null); }}
-          onSubmit={editingCollection ? handleUpdateCollection : handleCreateCollection}
-          initialData={editingCollection ? {
-            name: editingCollection.name,
-            url: editingCollection.baseUrl,
-            color: editingCollection.color
-          } : undefined}
-          isEditing={!!editingCollection}
+          onSave={(id, draft) => {
+            if (id) {
+              handleUpdateCollection(draft as any);
+            } else {
+              handleCreateCollection(draft as any);
+            }
+          }}
         />
       )}
 

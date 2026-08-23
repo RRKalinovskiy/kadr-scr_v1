@@ -3,20 +3,15 @@
 dist/
 build/
 *.js.map
-*.min.js
-*.bundle.js
+*.css.map
 
 # Dependencies
 node_modules/
 
-# Logs and temp files
-*.log
-*.tmp
-
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 
 # Editors
 .vscode/
@@ -24,15 +19,46 @@ node_modules/
 *.swp
 *.swo
 
+# Logs and temp files
+*.log
+*.tmp
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-venv/
-.venv/
-.env
-.env.local
-.env.*
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Compression
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
