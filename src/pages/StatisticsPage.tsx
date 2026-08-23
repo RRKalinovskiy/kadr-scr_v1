@@ -52,10 +52,17 @@ export default function CloudStatisticPage() {
   const [standUrl, setStandUrl] = useState("");
   const [standColor, setStandColor] = useState("#ffb454");
   
-  // Auth state
-  const [login, setLogin] = useState("");
-  const [password, setPassword] = useState("");
+  // Auth state - individual for each stand
+  const [standCredentials, setStandCredentials] = useState<Record<string, { login: string; password: string }>>({});
   const [authenticating, setAuthenticating] = useState<string | null>(null);
+  
+  const getStandCredentials = (standId: string) => standCredentials[standId] || { login: "", password: "" };
+  const updateStandCredentials = (standId: string, field: 'login' | 'password', value: string) => {
+    setStandCredentials(prev => ({
+      ...prev,
+      [standId]: { ...getStandCredentials(standId), [field]: value }
+    }));
+  };
   
   // Settings state
   const [settings, setSettings] = useState<StatisticsSettings>({
@@ -543,11 +550,12 @@ export default function CloudStatisticPage() {
 
   // Обработчик синхронизации (аутентификации) для конкретного стенда
   const handleSyncStand = (collection: ExtendedCollection) => {
-    if (!login.trim() || !password.trim()) {
+    const creds = getStandCredentials(collection.id);
+    if (!creds.login.trim() || !creds.password.trim()) {
       alert('Введите логин и пароль');
       return;
     }
-    authenticateToStand(collection, login, password);
+    authenticateToStand(collection, creds.login, creds.password);
   };
 
   // Добавление нового фильтра в настройки
@@ -739,22 +747,22 @@ export default function CloudStatisticPage() {
                   <input
                     type="text"
                     placeholder="Логин"
-                    value={login}
-                    onChange={(e) => setLogin(e.target.value)}
+                    value={getStandCredentials(collection.id).login}
+                    onChange={(e) => updateStandCredentials(collection.id, 'login', e.target.value)}
                     className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
                   />
                   <input
                     type="password"
                     placeholder="Пароль"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={getStandCredentials(collection.id).password}
+                    onChange={(e) => updateStandCredentials(collection.id, 'password', e.target.value)}
                     className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
                   />
                 </div>
                 
                 <button
                   onClick={() => handleSyncStand(collection)}
-                  disabled={authenticating === collection.id || !login.trim() || !password.trim()}
+                  disabled={authenticating === collection.id || !getStandCredentials(collection.id).login.trim() || !getStandCredentials(collection.id).password.trim()}
                   className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber/90 px-3 py-2 text-[12px] font-bold text-[#17211d] transition-all duration-150 hover:bg-amber disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {authenticating === collection.id ? (
