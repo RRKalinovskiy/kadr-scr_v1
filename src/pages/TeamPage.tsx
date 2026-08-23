@@ -102,7 +102,7 @@ export default function TeamPage() {
       <Header />
       
       {/* Main Content */}
-      <div className="mx-auto max-w-6xl px-6 py-8">
+      <main className="mx-auto max-w-6xl px-6 py-8">
         {/* Page Title */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="font-display text-2xl font-bold text-fog">Команда</h1>
@@ -119,8 +119,6 @@ export default function TeamPage() {
           </button>
         </div>
 
-        {/* Content */}
-      <main className="mx-auto max-w-6xl px-6 py-8">
         {/* Invite Section */}
         <section className="mb-8 rounded-xl border border-border bg-panel p-6">
           <div className="flex items-start justify-between">
@@ -294,7 +292,7 @@ export default function TeamPage() {
             })}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
