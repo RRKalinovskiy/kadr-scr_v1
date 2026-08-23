@@ -3,6 +3,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./components/LoginPage";
 import WorkspacePage from "./pages/WorkspacePage";
 import CloudStatisticPage from "./pages/CloudStatisticPage";
+import ReportsPage from "./pages/ReportsPage";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <Route path="/auth" element={<LoginPage />} />
         <Route path="/workspace" element={<WorkspacePage />} />
         <Route path="/cloud-statistic" element={<CloudStatisticPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
