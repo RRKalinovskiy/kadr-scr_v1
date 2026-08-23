@@ -97,21 +97,24 @@ export default function TeamPage() {
   );
 
   return (
-    <div className="min-h-screen bg-deep text-fog font-body">
+    <div className="min-h-screen bg-gray-50">
       {/* Header Component */}
       <Header />
       
       {/* Main Content */}
-      <main className="mx-auto max-w-6xl px-6 py-8">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Title */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="font-display text-2xl font-bold text-fog">Команда</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Команда</h1>
+            <p className="text-gray-500 mt-1">Управление участниками вашей команды</p>
+          </div>
           <button
             onClick={handleCopyInvite}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition-all ${
+            className={`flex items-center gap-2 rounded-md px-4 py-2 font-medium transition-all ${
               copied
-                ? "bg-sage text-[#17211d]"
-                : "bg-amber text-[#17211d] hover:bg-amber2"
+                ? "bg-green-100 text-green-700"
+                : "bg-blue-600 text-white hover:bg-blue-700"
             }`}
           >
             {copied ? <Check size={18} /> : <Copy size={18} />}
@@ -120,31 +123,31 @@ export default function TeamPage() {
         </div>
 
         {/* Invite Section */}
-        <section className="mb-8 rounded-xl border border-border bg-panel p-6">
+        <section className="mb-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="font-display text-lg font-bold text-fog mb-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
                 Пригласить участника
               </h2>
-              <p className="text-mist text-sm max-w-xl">
+              <p className="text-gray-500 text-sm max-w-xl">
                 Отправьте ссылку коллегам, чтобы они могли присоединиться к вашей команде. 
                 Все участники получат доступ к проектам и тестам аккаунта.
               </p>
             </div>
             <div className="hidden sm:block">
-              <div className="p-3 bg-raised rounded-lg">
-                <Plus size={24} className="text-amber" />
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <Plus size={24} className="text-blue-600" />
               </div>
             </div>
           </div>
           
           <div className="mt-4 flex items-center gap-3">
-            <div className="flex-1 rounded-lg border border-border bg-raised px-4 py-3 font-mono text-sm text-mist truncate">
+            <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 font-mono text-sm text-gray-500 truncate">
               {getInviteLink()}
             </div>
             <button
               onClick={handleCopyInvite}
-              className="flex items-center gap-2 rounded-lg border border-border bg-deep px-4 py-3 text-sm font-semibold text-fog hover:bg-raised transition-all"
+              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50 transition-all"
             >
               {copied ? <Check size={16} className="text-sage" /> : <Copy size={16} />}
               <span>{copied ? "Скопировано" : "Копировать"}</span>
@@ -154,13 +157,13 @@ export default function TeamPage() {
 
         {/* Search Bar */}
         <div className="mb-6 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-mist" size={20} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
           <input
             type="text"
             placeholder="Поиск по имени или email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-border bg-panel pl-12 pr-4 py-3 text-fog placeholder-mist/50 focus:border-amber focus:outline-none focus:ring-1 focus:ring-amber"
+            className="w-full rounded-lg border border-gray-200 bg-white pl-12 pr-4 py-3 text-gray-900 placeholder-mist/50 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
@@ -168,13 +171,13 @@ export default function TeamPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredMembers.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-4 bg-raised rounded-full mb-4">
-                {searchQuery ? <Search size={32} className="text-mist" /> : <Plus size={32} className="text-mist" />}
+              <div className="p-4 bg-gray-50 rounded-full mb-4">
+                {searchQuery ? <Search size={32} className="text-gray-500" /> : <Plus size={32} className="text-gray-500" />}
               </div>
-              <h3 className="font-display text-lg font-bold text-fog mb-2">
+              <h3 className="font-semibold text-lg font-bold text-gray-900 mb-2">
                 {searchQuery ? "Ничего не найдено" : "В команде пока никого нет"}
               </h3>
-              <p className="text-mist text-sm max-w-md">
+              <p className="text-gray-500 text-sm max-w-md">
                 {searchQuery 
                   ? "Попробуйте изменить поисковый запрос" 
                   : "Пригласите участников команды, используя ссылку выше"}
@@ -188,7 +191,7 @@ export default function TeamPage() {
               return (
                 <div
                   key={member.id}
-                  className="group relative rounded-xl border border-border bg-panel p-5 hover:border-amber/50 hover:shadow-lg transition-all"
+                  className="group relative rounded-lg border border-gray-200 bg-white p-5 hover:border-blue-300 hover:shadow-lg transition-all"
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
@@ -197,15 +200,15 @@ export default function TeamPage() {
                         {member.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}
                       </div>
                       <div>
-                        <h3 className="font-display font-bold text-fog truncate max-w-[180px]">
+                        <h3 className="font-semibold font-bold text-gray-900 truncate max-w-[180px]">
                           {member.name}
                         </h3>
-                        <p className="text-xs text-mist font-mono">{member.email}</p>
+                        <p className="text-xs text-gray-500 font-mono">{member.email}</p>
                       </div>
                     </div>
                     
                     {/* Role Badge */}
-                    <div className="flex items-center gap-1.5 rounded bg-raised px-2 py-1">
+                    <div className="flex items-center gap-1.5 rounded bg-gray-50 px-2 py-1">
                       <RoleIcon size={12} style={{ color: roleColor }} />
                       <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: roleColor }}>
                         {ROLE_META[member.role]?.label}
@@ -215,7 +218,7 @@ export default function TeamPage() {
 
                   {/* Contact Info */}
                   <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm text-mist">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
                       <Mail size={14} />
                       <span className="truncate">{member.email}</span>
                     </div>
@@ -228,12 +231,12 @@ export default function TeamPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center justify-between pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200/50">
                     {/* Role Selector */}
                     <select
                       value={member.role}
                       onChange={(e) => handleRoleChange(member.id, e.target.value as "admin" | "qa" | "dev")}
-                      className="text-xs rounded-lg border border-border bg-raised px-2 py-1.5 text-fog focus:border-amber focus:outline-none focus:ring-1 focus:ring-amber"
+                      className="text-xs rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
                       <option value="admin">Администратор</option>
                       <option value="qa">QA Инженер</option>
@@ -251,7 +254,7 @@ export default function TeamPage() {
                         </button>
                         <button
                           onClick={() => setShowDeleteConfirm(null)}
-                          className="rounded border border-line bg-raised px-2 py-1 text-[10px] font-bold text-mist hover:text-fog"
+                          className="rounded border border-line bg-gray-50 px-2 py-1 text-[10px] font-bold text-gray-500 hover:text-gray-900"
                         >
                           Нет
                         </button>
@@ -259,7 +262,7 @@ export default function TeamPage() {
                     ) : (
                       <button
                         onClick={() => setShowDeleteConfirm(member.id)}
-                        className="p-2 text-mist hover:text-coral transition-colors"
+                        className="p-2 text-gray-500 hover:text-red-600 transition-colors"
                         title="Удалить из команды"
                       >
                         <Trash2 size={16} />
@@ -281,12 +284,12 @@ export default function TeamPage() {
               const Icon = meta.icon;
               
               return (
-                <div key={role} className="rounded-xl border border-border bg-panel p-4 text-center">
+                <div key={role} className="rounded-lg border border-gray-200 bg-white p-4 text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <Icon size={18} style={{ color: meta.color }} />
-                    <span className="text-sm font-semibold text-mist">{meta.label}</span>
+                    <span className="text-sm font-semibold text-gray-500">{meta.label}</span>
                   </div>
-                  <div className="text-2xl font-bold text-fog">{count}</div>
+                  <div className="text-2xl font-bold text-gray-900">{count}</div>
                 </div>
               );
             })}

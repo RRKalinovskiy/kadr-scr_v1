@@ -209,22 +209,24 @@ const WorkspacePage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-deep text-fog font-body overflow-hidden">
+    <div className="min-h-screen bg-gray-50">
       {/* Header Component */}
       <Header />
       
-      {/* Sidebar */}
-      <aside className="w-64 bg-panel border-r border-border flex flex-col">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-display font-bold text-lg text-fog">Коллекции</h2>
-          <button 
-            onClick={() => { setEditingCollection(null); setIsCollectionModalOpen(true); }}
-            className="p-2 hover:bg-raised rounded-md transition-colors text-mist hover:text-fog"
-            title="Создать коллекцию"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
+      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex gap-6 h-[calc(100vh-140px)]">
+          {/* Sidebar */}
+          <aside className="w-64 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+              <h2 className="font-semibold text-gray-900">Коллекции</h2>
+              <button 
+                onClick={() => { setEditingCollection(null); setIsCollectionModalOpen(true); }}
+                className="p-1.5 hover:bg-blue-50 rounded-md transition-colors text-gray-600 hover:text-blue-600"
+                title="Создать коллекцию"
+              >
+                <Plus size={18} />
+              </button>
+            </div>
         
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {collections.length === 0 ? (
@@ -281,21 +283,20 @@ const WorkspacePage: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-deep">
-        {/* Header with tabs and user menu - REMOVED, now in Header component */}
-
+      <div className="flex-1 flex flex-col min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        
         {viewMode === 'list' && (
           <>
             {/* Action bar for creating tests */}
             {!activeCollection ? null : (
-              <div className="border-b border-border bg-panel/30 px-6 py-3 flex items-center justify-between">
-                <div className="text-sm text-mist">
+              <div className="border-b border-gray-200 bg-gray-50 px-6 py-3 flex items-center justify-between">
+                <div className="text-sm text-gray-500">
                   {tests.length > 0 ? `${tests.length} тестов в коллекции` : 'Нет тестов'}
                 </div>
                 <button
                   onClick={() => setIsTestModalOpen(true)}
                   disabled={!activeCollection}
-                  className="flex items-center gap-2 px-4 py-2 bg-ember hover:bg-orange-500 disabled:bg-mist/20 disabled:text-mist/50 text-white rounded-lg font-medium transition-all shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 text-white rounded-md font-medium transition-all shadow-sm"
                 >
                   <Plus size={18} />
                   <span>Новый тест</span>
@@ -396,7 +397,9 @@ const WorkspacePage: React.FC = () => {
             onCancel={() => setViewMode('inspector')}
           />
         )}
-      </main>
+      </div>
+    </div>
+  </main>
 
       {/* Modals */}
       {isCollectionModalOpen && (

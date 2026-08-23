@@ -37,19 +37,19 @@ export const Header: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-14">
           
           <div className="flex">
             <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={() => handleNavClick('/workspace')}>
-              <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+              <div className="h-7 w-7 bg-blue-600 rounded flex items-center justify-center text-white font-bold text-sm">
                 К
               </div>
-              <span className="ml-2 text-xl font-bold text-gray-800 hidden sm:block">КАДР</span>
+              <span className="ml-2 text-lg font-semibold text-gray-900 hidden sm:block tracking-tight">КАДР</span>
             </div>
             
-            <div className="hidden sm:ml-8 sm:flex sm:space-x-8">
+            <div className="hidden sm:ml-10 sm:flex sm:space-x-1">
               {[
                 { path: '/workspace', label: 'Рабочее место' },
                 { path: '/team', label: 'Сотрудники' },
@@ -59,10 +59,10 @@ export const Header: React.FC = () => {
                   key={item.path}
                   onClick={() => handleNavClick(item.path)}
                   className={`
-                    inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium h-16
+                    inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium rounded-t-md transition-colors duration-200 h-full
                     ${isActive(item.path)
-                      ? 'border-blue-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}
+                      ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
                   `}
                 >
                   {item.label}
@@ -75,20 +75,23 @@ export const Header: React.FC = () => {
             <div className="relative">
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center space-x-3 focus:outline-none p-1 rounded-full hover:bg-gray-100 transition-colors"
+                className="flex items-center space-x-2 focus:outline-none p-1.5 rounded-full hover:bg-gray-100 transition-colors"
               >
-                <div className="text-right hidden md:block">
-                  <div className="text-sm font-medium text-gray-700">{user?.name || 'Пользователь'}</div>
-                  <div className={`text-xs flex items-center justify-end gap-1 ${currentStatus.id === 'online' ? 'text-green-600' : 'text-gray-500'}`}>
-                    <span className={`w-2 h-2 rounded-full ${currentStatus.color}`}></span>
+                <div className="text-right hidden md:block mr-1">
+                  <div className="text-sm font-medium text-gray-900 leading-tight">{user?.name || 'Пользователь'}</div>
+                  <div className={`text-xs flex items-center justify-end gap-1.5 mt-0.5 ${currentStatus.id === 'online' ? 'text-green-600' : 'text-gray-500'}`}>
+                    <span className={`w-2 h-2 rounded-full ${currentStatus.color} ring-2 ring-white`}></span>
                     {currentStatus.label}
                   </div>
                 </div>
-                <img
-                  className="h-8 w-8 rounded-full bg-gray-300 object-cover"
-                  src={user?.avatar || 'https://via.placeholder.com/150'}
-                  alt="Avatar"
-                />
+                <div className="relative">
+                  <img
+                    className="h-8 w-8 rounded-full bg-gray-200 object-cover ring-2 ring-gray-100"
+                    src={user?.avatar || 'https://via.placeholder.com/150'}
+                    alt="Avatar"
+                  />
+                  <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${currentStatus.color}`}></span>
+                </div>
               </button>
 
               {isProfileOpen && (

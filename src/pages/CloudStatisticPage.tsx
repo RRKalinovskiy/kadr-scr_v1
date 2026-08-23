@@ -26,9 +26,9 @@ export default function CloudStatisticPage() {
 
   if (loading) {
     return (
-      <div className="grid h-screen w-screen place-items-center bg-deep text-fog">
+      <div className="grid h-screen w-screen place-items-center bg-gray-100 text-gray-900">
         <div className="text-center">
-          <div className="font-display text-[18px] font-bold">Загрузка...</div>
+          <div className="font-semibold text-[18px] font-bold">Загрузка...</div>
         </div>
       </div>
     );
@@ -39,7 +39,7 @@ export default function CloudStatisticPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-deep text-fog">
+    <div className="flex min-h-screen flex-col bg-gray-100 text-gray-900">
       {/* Header Component */}
       <Header />
       
@@ -48,12 +48,12 @@ export default function CloudStatisticPage() {
         {/* Page Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-fog">Статистика облака</h1>
-            <p className="text-sm text-mist mt-1">Мониторинг и отчеты по тестам команды</p>
+            <h1 className="font-semibold text-2xl font-bold text-gray-900">Статистика облака</h1>
+            <p className="text-sm text-gray-500 mt-1">Мониторинг и отчеты по тестам команды</p>
           </div>
           <button
             onClick={() => navigate("/workspace")}
-            className="flex h-9 items-center gap-2 rounded-lg border border-line bg-raised px-3 text-[12px] font-extrabold text-mist transition-all duration-150 hover:border-teal/50 hover:text-teal active:scale-[0.97]"
+            className="flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 text-[12px] font-extrabold text-gray-500 transition-all duration-150 hover:border-green-300 hover:text-green-600 active:scale-[0.97]"
           >
             ← Назад в workspace
           </button>
@@ -61,10 +61,10 @@ export default function CloudStatisticPage() {
 
         {/* Content */}
         <div className="max-w-lg text-center">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-line bg-raised">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-gray-300 bg-gray-50">
             <BarChart3 size={40} className="text-amber" />
           </div>
-          <h1 className="mb-3 font-display text-[22px] font-bold text-fog">
+          <h1 className="mb-3 font-semibold text-[22px] font-bold text-gray-900">
             Облачная статистика
           </h1>
           <p className="mb-6 text-[14px] font-medium text-dim">
@@ -73,7 +73,7 @@ export default function CloudStatisticPage() {
           </p>
           <div className="flex items-center justify-center gap-3">
             <button
-              className="flex items-center gap-2 rounded-lg border border-line bg-raised px-4 py-2.5 text-[13px] font-extrabold text-mist transition-all duration-150 hover:border-amber/50 hover:text-amber active:scale-[0.97]"
+              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-[13px] font-extrabold text-gray-500 transition-all duration-150 hover:border-blue-300 hover:text-blue-600 active:scale-[0.97]"
             >
               <RefreshCw size={14} />
               Обновить отчеты
@@ -81,7 +81,7 @@ export default function CloudStatisticPage() {
           </div>
           
           {/* Заглушка для будущих отчетов */}
-          <div className="mt-10 rounded-xl border border-dashed border-line bg-panel/30 p-8">
+          <div className="mt-10 rounded-lg border border-dashed border-gray-300 bg-white/30 p-8">
             <Inbox size={32} className="mx-auto mb-3 text-dim" />
             <p className="text-[13px] font-semibold text-dim">
               Отчеты пока не сформированы
