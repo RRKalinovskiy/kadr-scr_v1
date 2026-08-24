@@ -3,21 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Header } from '../components/Header';
 import { backend } from "../backend";
 import type { PublicUser } from "../backend";
-import { BarChart3, Inbox, RefreshCw, Plus, Wifi, WifiOff, Settings, LogOut, Download } from "lucide-react";
+import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download } from "lucide-react";
 import { loadStateFor, saveStateFor, type PersistedState } from "../data";
-import type { Collection } from "../types";
-
-// Расширяем интерфейс Collection для хранения cookie и настроек
-interface ExtendedCollection extends Collection {
-  cookies?: string;
-  lastSync?: number;
-  syncStatus?: 'idle' | 'syncing' | 'success' | 'error';
-}
 
 interface ReportFilter {
   id: string;
   name: string;
-  filter: Record<string, any>;
+  filterJson: string;
   createdAt: number;
 }
 
@@ -28,7 +20,17 @@ interface StatisticsSettings {
   refreshInterval: number;
 }
 
-// Глобальная функция для загрузки requirejs
+interface StandCredentials {
+  login: string;
+  password: string;
+}
+
+interface StandState {
+  syncStatus: 'idle' | 'syncing' | 'success' | 'error';
+  cookies?: string;
+  lastSync?: number;
+}
+
 declare global {
   interface Window {
     requirejs?: (deps: string[], callback: (...args: any[]) => void) => void;
@@ -38,31 +40,20 @@ declare global {
   }
 }
 
+const FIXED_STANDS = [
+  { id: "fix-stand", name: "fix", baseUrl: "https://fix-cloud.sbis.ru", color: "#ffb454" },
+  { id: "test-stand", name: "test", baseUrl: "https://test-cloud.sbis.ru", color: "#4fe0c4" },
+  { id: "pre-test-stand", name: "pre-test", baseUrl: "https://pre-test-cloud.sbis.ru", color: "#7fb7ff" },
+];
+
 export default function CloudStatisticPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collections, setCollections] = useState<ExtendedCollection[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [editingCollection, setEditingCollection] = useState<ExtendedCollection | null>(null);
-  
-  // Form state
-  const [standName, setStandName] = useState("");
-  const [standUrl, setStandUrl] = useState("");
-  const [standColor, setStandColor] = useState("#ffb454");
-  
-  // Auth state - individual for each stand
-  const [standCredentials, setStandCredentials] = useState<Record<string, { login: string; password: string }>>({});
+  const [standCredentials, setStandCredentials] = useState<Record<string, StandCredentials>>({});
+  const [standStates, setStandStates] = useState<Record<string, StandState>>({});
   const [authenticating, setAuthenticating] = useState<string | null>(null);
-  
-  const getStandCredentials = (standId: string) => standCredentials[standId] || { login: "", password: "" };
-  const updateStandCredentials = (standId: string, field: 'login' | 'password', value: string) => {
-    setStandCredentials(prev => ({
-      ...prev,
-      [standId]: { ...getStandCredentials(standId), [field]: value }
-    }));
-  };
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Settings state
   const [settings, setSettings] = useState<StatisticsSettings>({
@@ -86,6 +77,24 @@ export default function CloudStatisticPage() {
       }
     }
     return "default";
+  };
+
+  const getStandCredentials = (standId: string): StandCredentials => standCredentials[standId] || { login: "", password: "" };
+  
+  const updateStandCredentials = (standId: string, field: 'login' | 'password', value: string) => {
+    setStandCredentials(prev => ({
+      ...prev,
+      [standId]: { ...getStandCredentials(standId), [field]: value }
+    }));
+  };
+
+  const getStandState = (standId: string): StandState => standStates[standId] || { syncStatus: 'idle' };
+  
+  const updateStandState = (standId: string, updates: Partial<StandState>) => {
+    setStandStates(prev => ({
+      ...prev,
+      [standId]: { ...getStandState(standId), ...updates }
+    }));
   };
 
   // Загрузка настроек из localStorage
@@ -115,67 +124,29 @@ export default function CloudStatisticPage() {
     backend.restore().then((result) => {
       if (result && result.user) {
         setUser(result.user);
-        // Load collections
+        
+        // Загружаем настройки и состояние стендов из localStorage
+        const accountId = getAccountId();
+        const loadedSettings = loadSettings();
+        setSettings(loadedSettings);
+        if (loadedSettings.defaultFilterId) {
+          setSelectedFilterId(loadedSettings.defaultFilterId);
+        }
+        
+        // Загружаем сохраненные credentials и states для стендов
         try {
-          const accountId = getAccountId();
-          const state = loadStateFor(accountId);
-          const cols = state?.collections || [];
-          
-          // Добавляем 3 стандартных стенда если коллекций нет
-          if (cols.length === 0) {
-            const defaultStands: ExtendedCollection[] = [
-              {
-                id: "fix-stand",
-                name: "fix",
-                baseUrl: "https://fix-cloud.sbis.ru",
-                color: "#ffb454",
-                tests: [],
-                createdAt: new Date().toISOString(),
-                syncStatus: 'idle',
-              },
-              {
-                id: "test-stand",
-                name: "test",
-                baseUrl: "https://test-cloud.sbis.ru",
-                color: "#4fe0c4",
-                tests: [],
-                createdAt: new Date().toISOString(),
-                syncStatus: 'idle',
-              },
-              {
-                id: "pre-test-stand",
-                name: "pre-test",
-                baseUrl: "https://pre-test-cloud.sbis.ru",
-                color: "#7fb7ff",
-                tests: [],
-                createdAt: new Date().toISOString(),
-                syncStatus: 'idle',
-              },
-            ];
-            setCollections(defaultStands);
-            // Сохраняем в состояние
-            const fullState: PersistedState = {
-              collections: defaultStands.map(c => ({ ...c, cookies: undefined, lastSync: undefined, syncStatus: undefined }) as Collection),
-              activeId: defaultStands[0].id,
-              buildNo: 13,
-              cookieStore: {},
-              account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
-              tagColors: {},
-            };
-            saveStateFor(accountId, fullState);
-          } else {
-            setCollections(cols as ExtendedCollection[]);
+          const savedCredentials = localStorage.getItem(`stats-credentials-${accountId}`);
+          if (savedCredentials) {
+            setStandCredentials(JSON.parse(savedCredentials));
           }
-          
-          // Загружаем настройки
-          const loadedSettings = loadSettings();
-          setSettings(loadedSettings);
-          if (loadedSettings.defaultFilterId) {
-            setSelectedFilterId(loadedSettings.defaultFilterId);
+          const savedStates = localStorage.getItem(`stats-states-${accountId}`);
+          if (savedStates) {
+            setStandStates(JSON.parse(savedStates));
           }
         } catch (e) {
-          console.error('Failed to load collections:', e);
+          console.error('Failed to load stand data:', e);
         }
+        
         setLoading(false);
       } else {
         navigate("/auth");
@@ -186,9 +157,8 @@ export default function CloudStatisticPage() {
   }, [navigate]);
 
   // Функция аутентификации на стенде через внешний вызов
-  const authenticateToStand = async (collection: ExtendedCollection, loginValue: string, passwordValue: string) => {
-    const standUrl = collection.baseUrl;
-    setAuthenticating(collection.id);
+  const authenticateToStand = async (standId: string, standUrl: string, loginValue: string, passwordValue: string) => {
+    setAuthenticating(standId);
     
     try {
       // Проверяем наличие requirejs
@@ -196,22 +166,13 @@ export default function CloudStatisticPage() {
         console.warn('requirejs not available, using mock authentication');
         await new Promise(resolve => setTimeout(resolve, 1500));
         const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
-        const updatedCollections = collections.map(c => 
-          c.id === collection.id 
-            ? { ...c, cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' as const }
-            : c
-        );
-        setCollections(updatedCollections);
+        updateStandState(standId, { cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' });
+        
+        // Сохраняем в localStorage
         const accountId = getAccountId();
-        const fullState: PersistedState = {
-          collections: updatedCollections.map(c => ({ ...c, cookies: undefined, lastSync: undefined, syncStatus: undefined }) as Collection),
-          activeId: updatedCollections[0]?.id || "",
-          buildNo: 13,
-          cookieStore: {},
-          account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
-          tagColors: {},
-        };
-        saveStateFor(accountId, fullState);
+        localStorage.setItem(`stats-states-${accountId}`, JSON.stringify(standStates));
+        localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify(standCredentials));
+        
         setAuthenticating(null);
         return;
       }
@@ -275,43 +236,29 @@ export default function CloudStatisticPage() {
           // Извлекаем cookie из результата
           const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
           
-          const updatedCollections = collections.map(c => 
-            c.id === collection.id 
-              ? { ...c, cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' as const }
-              : c
-          );
-          setCollections(updatedCollections);
+          updateStandState(standId, { cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' });
           
+          // Сохраняем в localStorage
           const accountId = getAccountId();
-          const fullState: PersistedState = {
-            collections: updatedCollections.map(c => ({ ...c, cookies: undefined, lastSync: undefined, syncStatus: undefined }) as Collection),
-            activeId: updatedCollections[0]?.id || "",
-            buildNo: 13,
-            cookieStore: {},
-            account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
-            tagColors: {},
-          };
-          saveStateFor(accountId, fullState);
+          localStorage.setItem(`stats-states-${accountId}`, JSON.stringify(standStates));
+          localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify(standCredentials));
+          
           setAuthenticating(null);
         });
       });
       
     } catch (error) {
       console.error('Authentication failed:', error);
-      const updatedCollections = collections.map(c => 
-        c.id === collection.id 
-          ? { ...c, syncStatus: 'error' as const }
-          : c
-      );
-      setCollections(updatedCollections);
+      updateStandState(standId, { syncStatus: 'error' });
       setAuthenticating(null);
     }
   };
 
   // Функция получения отчета с использованием cookie
-  const fetchReport = async (filter: ReportFilter, collection: ExtendedCollection) => {
-    if (!collection.cookies) {
-      console.warn('No cookies for collection', collection.name);
+  const fetchReport = async (filter: ReportFilter, standId: string, standUrl: string) => {
+    const standState = getStandState(standId);
+    if (!standState.cookies) {
+      console.warn('No cookies for stand', standId);
       return null;
     }
 
@@ -418,7 +365,7 @@ export default function CloudStatisticPage() {
           new source.SbisService({
             endpoint: {
               contract: 'CommonStatistic',
-              address: window.wsConfig?.appRoot?.search('stats-cloud-interface') === -1 && `${collection.baseUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
+              address: window.wsConfig?.appRoot?.search('stats-cloud-interface') === -1 && `${standUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
             },
             binding: {
               query: 'GetReport'
@@ -447,115 +394,14 @@ export default function CloudStatisticPage() {
     }
   };
 
-  const handleCreateCollection = () => {
-    if (!standName.trim() || !standUrl.trim()) return;
-    
-    const newCollection: Collection = {
-      id: Date.now().toString(),
-      name: standName,
-      baseUrl: standUrl,
-      color: standColor,
-      tests: [],
-      createdAt: new Date().toISOString(),
-    };
-    
-    const updatedCollections = [...collections, newCollection];
-    setCollections(updatedCollections);
-    
-    // Save state
-    const accountId = getAccountId();
-    const fullState: PersistedState = {
-      collections: updatedCollections,
-      activeId: collections.length > 0 ? collections[0].id : newCollection.id,
-      buildNo: 13,
-      cookieStore: {},
-      account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
-      tagColors: {},
-    };
-    saveStateFor(accountId, fullState);
-    
-    // Reset form and close modal
-    setStandName("");
-    setStandUrl("");
-    setStandColor("#ffb454");
-    setIsModalOpen(false);
-    setEditingCollection(null);
-  };
-
-  const handleEditCollection = (collection: Collection) => {
-    setEditingCollection(collection);
-    setStandName(collection.name);
-    setStandUrl(collection.baseUrl);
-    setStandColor(collection.color);
-    setIsModalOpen(true);
-  };
-
-  const handleUpdateCollection = () => {
-    if (!editingCollection || !standName.trim() || !standUrl.trim()) return;
-    
-    const updatedCollections = collections.map(c => 
-      c.id === editingCollection.id 
-        ? { ...c, name: standName, baseUrl: standUrl, color: standColor }
-        : c
-    );
-    
-    setCollections(updatedCollections);
-    
-    // Save state
-    const accountId = getAccountId();
-    const fullState: PersistedState = {
-      collections: updatedCollections,
-      activeId: collections.length > 0 ? collections[0].id : "",
-      buildNo: 13,
-      cookieStore: {},
-      account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
-      tagColors: {},
-    };
-    saveStateFor(accountId, fullState);
-    
-    // Reset form and close modal
-    setStandName("");
-    setStandUrl("");
-    setStandColor("#ffb454");
-    setIsModalOpen(false);
-    setEditingCollection(null);
-  };
-
-  const handleDeleteCollection = (id: string) => {
-    if (confirm('Вы уверены? Эта коллекция будет удалена.')) {
-      const updatedCollections = collections.filter(c => c.id !== id);
-      setCollections(updatedCollections);
-      
-      // Save state
-      const accountId = getAccountId();
-      const fullState: PersistedState = {
-        collections: updatedCollections,
-        activeId: updatedCollections.length > 0 ? updatedCollections[0].id : "",
-        buildNo: 13,
-        cookieStore: {},
-        account: { id: accountId, name: "User", email: "user@example.com", plan: "free", createdAt: Date.now() },
-        tagColors: {},
-      };
-      saveStateFor(accountId, fullState);
-    }
-  };
-
-  const openCreateModal = () => {
-    setEditingCollection(null);
-    setStandName("");
-    setStandUrl("");
-    setStandColor("#ffb454");
-    setIsModalOpen(true);
-  };
-
   // Обработчик синхронизации (аутентификации) для конкретного стенда
-  const handleSyncStand = (collection: ExtendedCollection) => {
-    const creds = getStandCredentials(collection.id);
+  const handleSyncStand = (standId: string, standUrl: string) => {
+    const creds = getStandCredentials(standId);
     if (!creds.login.trim() || !creds.password.trim()) {
       alert('Введите логин и пароль');
       return;
     }
-    authenticateToStand(collection, creds.login, creds.password);
+    authenticateToStand(standId, standUrl, creds.login, creds.password);
   };
 
   // Добавление нового фильтра в настройки
@@ -563,31 +409,7 @@ export default function CloudStatisticPage() {
     const newFilter: ReportFilter = {
       id: Date.now().toString(),
       name: `Фильтр ${settings.reportFilters.length + 1}`,
-      filter: {
-        TZ: 3,
-        characteristics: {
-          rs: [
-            { id: "Количество вызовов", order: "desc", range: {} },
-            { id: "Количество ошибок", order: null, range: {} },
-          ],
-          meta: {}
-        },
-        comparePeriodEnabled: false,
-        cube: "Вызовы",
-        dimensions: {
-          rs: [
-            { id: "time", isTimeDim: true, isAggregated: true, top: 100, mode: "all_days", timePeriod: { start: "00:00", end: "23:59" }, timeStep: "ten_minute" },
-            { id: "Метод_Метод", isTimeDim: null, isAggregated: true, top: 100 },
-          ],
-          meta: {}
-        },
-        displayType: "Таблица",
-        period: {
-          rs: [{ start: new Date().toISOString(), end: new Date().toISOString() }],
-          meta: {}
-        },
-        version: "1"
-      },
+      filterJson: '',
       createdAt: Date.now(),
     };
     const newSettings = { ...settings, reportFilters: [...settings.reportFilters, newFilter] };
@@ -612,6 +434,15 @@ export default function CloudStatisticPage() {
     const newSettings = {
       ...settings,
       reportFilters: settings.reportFilters.map(f => f.id === filterId ? { ...f, name: newName } : f),
+    };
+    saveSettings(newSettings);
+  };
+
+  // Изменение JSON фильтра
+  const handleUpdateFilterJson = (filterId: string, newJson: string) => {
+    const newSettings = {
+      ...settings,
+      reportFilters: settings.reportFilters.map(f => f.id === filterId ? { ...f, filterJson: newJson } : f),
     };
     saveSettings(newSettings);
   };
@@ -658,127 +489,107 @@ export default function CloudStatisticPage() {
               <Settings size={18} />
               Настройки
             </button>
-            <button
-              onClick={openCreateModal}
-              className="flex items-center gap-2 rounded-lg bg-amber px-4 py-2.5 text-[13px] font-extrabold text-[#17211d] shadow-[0_2px_14px_rgba(255,180,84,0.3)] transition-all duration-150 hover:bg-amber2 hover:scale-105 active:scale-[0.98]"
-            >
-              <Plus size={18} />
-              Подключить стенд
-            </button>
           </div>
         </div>
 
-        {/* Connection Blocks */}
+        {/* Fixed Stands Blocks */}
         <div className="mb-8">
-          <h2 className="font-display text-[18px] font-semibold text-fog mb-4">Подключенные стенды</h2>
+          <h2 className="font-display text-[18px] font-semibold text-fog mb-4">Стенды</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {collections.map((collection) => (
-              <div
-                key={collection.id}
-                className="group rounded-xl border border-line bg-panel/60 p-5 transition-all duration-200 hover:bg-panel/80 hover:shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: collection.color }}
-                    />
-                    <h3 className="font-display text-[16px] font-bold text-fog">{collection.name}</h3>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => handleEditCollection(collection)}
-                      className="p-1.5 hover:bg-raised rounded text-mist hover:text-fog"
-                    >
-                      <RefreshCw size={14} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteCollection(collection.id)}
-                      className="p-1.5 hover:bg-ember/20 rounded text-mist hover:text-ember"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-mist font-mono bg-deep/50 p-2 rounded border border-border truncate mb-3">
-                  {collection.baseUrl}
-                </p>
-                
-                {/* Status indicator */}
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] text-dim font-semibold">
-                    {collection.tests?.length || 0} тестов
-                  </span>
-                  {collection.syncStatus === 'success' && (
-                    <span className="text-[10px] px-2 py-1 rounded bg-sage/20 text-sage font-semibold">
-                      Синхронизирован
-                    </span>
-                  )}
-                  {collection.syncStatus === 'syncing' && (
-                    <span className="text-[10px] px-2 py-1 rounded bg-amber/20 text-amber font-semibold animate-pulse">
-                      Синхронизация...
-                    </span>
-                  )}
-                  {collection.syncStatus === 'error' && (
-                    <span className="text-[10px] px-2 py-1 rounded bg-ember/20 text-ember font-semibold">
-                      Ошибка
-                    </span>
-                  )}
-                  {!collection.syncStatus && (
-                    <span className="text-[10px] px-2 py-1 rounded bg-slate/20 text-slate font-semibold">
-                      Не синхронизирован
-                    </span>
-                  )}
-                </div>
-
-                {/* Cookie status */}
-                {collection.cookies && (
-                  <div className="mb-3 p-2 bg-deep/50 rounded border border-border">
-                    <p className="text-[10px] text-mist font-mono truncate">
-                      Cookie: {collection.cookies.substring(0, 40)}...
-                    </p>
-                  </div>
-                )}
-                
-                {/* Auth form for this stand */}
-                <div className="space-y-2 mb-3">
-                  <input
-                    type="text"
-                    placeholder="Логин"
-                    value={getStandCredentials(collection.id).login}
-                    onChange={(e) => updateStandCredentials(collection.id, 'login', e.target.value)}
-                    className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Пароль"
-                    value={getStandCredentials(collection.id).password}
-                    onChange={(e) => updateStandCredentials(collection.id, 'password', e.target.value)}
-                    className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
-                  />
-                </div>
-                
-                <button
-                  onClick={() => handleSyncStand(collection)}
-                  disabled={authenticating === collection.id || !getStandCredentials(collection.id).login.trim() || !getStandCredentials(collection.id).password.trim()}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber/90 px-3 py-2 text-[12px] font-bold text-[#17211d] transition-all duration-150 hover:bg-amber disabled:opacity-50 disabled:cursor-not-allowed"
+            {FIXED_STANDS.map((stand) => {
+              const state = getStandState(stand.id);
+              return (
+                <div
+                  key={stand.id}
+                  className="group rounded-xl border border-line bg-panel/60 p-5 transition-all duration-200 hover:bg-panel/80 hover:shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
                 >
-                  {authenticating === collection.id ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" />
-                      Синхронизация...
-                    </>
-                  ) : (
-                    <>
-                      <LogOut size={14} />
-                      Синхронизация
-                    </>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: stand.color }}
+                      />
+                      <h3 className="font-display text-[16px] font-bold text-fog">{stand.name}</h3>
+                    </div>
+                  </div>
+                  <p className="text-xs text-mist font-mono bg-deep/50 p-2 rounded border border-border truncate mb-3">
+                    {stand.baseUrl}
+                  </p>
+                  
+                  {/* Status indicator */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] text-dim font-semibold">
+                      Стенд
+                    </span>
+                    {state.syncStatus === 'success' && (
+                      <span className="text-[10px] px-2 py-1 rounded bg-sage/20 text-sage font-semibold">
+                        Синхронизирован
+                      </span>
+                    )}
+                    {state.syncStatus === 'syncing' && (
+                      <span className="text-[10px] px-2 py-1 rounded bg-amber/20 text-amber font-semibold animate-pulse">
+                        Синхронизация...
+                      </span>
+                    )}
+                    {state.syncStatus === 'error' && (
+                      <span className="text-[10px] px-2 py-1 rounded bg-ember/20 text-ember font-semibold">
+                        Ошибка
+                      </span>
+                    )}
+                    {!state.syncStatus || state.syncStatus === 'idle' && (
+                      <span className="text-[10px] px-2 py-1 rounded bg-slate/20 text-slate font-semibold">
+                        Не синхронизирован
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Cookie status */}
+                  {state.cookies && (
+                    <div className="mb-3 p-2 bg-deep/50 rounded border border-border">
+                      <p className="text-[10px] text-mist font-mono truncate">
+                        Cookie: {state.cookies.substring(0, 40)}...
+                      </p>
+                    </div>
                   )}
-                </button>
-              </div>
-            ))}
+                  
+                  {/* Auth form for this stand */}
+                  <div className="space-y-2 mb-3">
+                    <input
+                      type="text"
+                      placeholder="Логин"
+                      value={getStandCredentials(stand.id).login}
+                      onChange={(e) => updateStandCredentials(stand.id, 'login', e.target.value)}
+                      className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
+                    />
+                    <input
+                      type="password"
+                      placeholder="Пароль"
+                      value={getStandCredentials(stand.id).password}
+                      onChange={(e) => updateStandCredentials(stand.id, 'password', e.target.value)}
+                      className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
+                    />
+                  </div>
+                  
+                  <button
+                    onClick={() => handleSyncStand(stand.id, stand.baseUrl)}
+                    disabled={authenticating === stand.id || !getStandCredentials(stand.id).login.trim() || !getStandCredentials(stand.id).password.trim()}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber/90 px-3 py-2 text-[12px] font-bold text-[#17211d] transition-all duration-150 hover:bg-amber disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {authenticating === stand.id ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        Синхронизация...
+                      </>
+                    ) : (
+                      <>
+                        <LogOut size={14} />
+                        Синхронизация
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -807,8 +618,8 @@ export default function CloudStatisticPage() {
                   <button
                     onClick={async () => {
                       const filter = settings.reportFilters.find(f => f.id === selectedFilterId);
-                      if (filter && collections.length > 0) {
-                        const report = await fetchReport(filter, collections[0]);
+                      if (filter && FIXED_STANDS.length > 0) {
+                        const report = await fetchReport(filter, FIXED_STANDS[0].id, FIXED_STANDS[0].baseUrl);
                         if (report) {
                           setAvailableReports(report.rows.map(r => r.method));
                         }
@@ -988,36 +799,61 @@ export default function CloudStatisticPage() {
                         <p className="text-xs text-dim mt-1">Добавьте первый фильтр для начала работы</p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {settings.reportFilters.map((filter) => (
                           <div
                             key={filter.id}
-                            className="flex items-center gap-3 p-3 bg-deep/50 rounded-lg border border-border group"
+                            className="p-4 bg-deep/50 rounded-lg border border-border space-y-3 group"
                           >
-                            <input
-                              type="text"
-                              value={filter.name}
-                              onChange={(e) => handleRenameFilter(filter.id, e.target.value)}
-                              className="flex-1 bg-transparent border-none text-[13px] text-fog focus:outline-none focus:ring-1 focus:ring-amber rounded px-2 py-1"
-                            />
-                            <button
-                              onClick={() => handleSetDefaultFilter(filter.id)}
-                              className={`text-[10px] px-2 py-1 rounded transition-colors ${
-                                settings.defaultFilterId === filter.id
-                                  ? 'bg-sage/20 text-sage font-semibold'
-                                  : 'bg-raised text-mist hover:text-fog'
-                              }`}
-                            >
-                              {settings.defaultFilterId === filter.id ? 'По умолчанию' : 'Сделать основным'}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteFilter(filter.id)}
-                              className="p-1.5 hover:bg-ember/20 rounded text-mist hover:text-ember opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                              </svg>
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <div className="w-32">
+                                <label className="block text-[10px] font-bold text-mist uppercase mb-1">Имя</label>
+                                <input
+                                  type="text"
+                                  value={filter.name}
+                                  onChange={(e) => handleRenameFilter(filter.id, e.target.value)}
+                                  placeholder="Имя фильтра"
+                                  className="w-full bg-deep border border-line rounded px-2 py-1.5 text-[13px] text-fog focus:outline-none focus:ring-1 focus:ring-amber"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-mist uppercase mb-1">Фильтр (JSON)</label>
+                                <input
+                                  type="text"
+                                  value={filter.filterJson}
+                                  onChange={(e) => {
+                                    const newSettings = {
+                                      ...settings,
+                                      reportFilters: settings.reportFilters.map(f => f.id === filter.id ? { ...f, filterJson: e.target.value } : f),
+                                    };
+                                    saveSettings(newSettings);
+                                  }}
+                                  placeholder='{"filter": {...}, "Фильтр": {...}}'
+                                  className="w-full bg-deep border border-line rounded px-2 py-1.5 text-[12px] text-fog focus:outline-none focus:ring-1 focus:ring-amber font-mono"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 pt-2 border-t border-line">
+                              <button
+                                onClick={() => handleSetDefaultFilter(filter.id)}
+                                className={`text-[10px] px-2 py-1 rounded transition-colors ${
+                                  settings.defaultFilterId === filter.id
+                                    ? 'bg-sage/20 text-sage font-semibold'
+                                    : 'bg-raised text-mist hover:text-fog'
+                                }`}
+                              >
+                                {settings.defaultFilterId === filter.id ? 'По умолчанию' : 'Сделать основным'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFilter(filter.id)}
+                                className="flex items-center gap-1 text-[10px] px-2 py-1 hover:bg-ember/20 rounded text-mist hover:text-ember transition-colors"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                                </svg>
+                                Удалить
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
