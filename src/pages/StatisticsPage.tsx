@@ -24,6 +24,7 @@ interface SavedReport {
   createdAt: number;
   createdBy: string;
   standId: string;
+  standName: string;
   data: any;
   filterJson: string;
 }
@@ -511,6 +512,7 @@ export default function CloudStatisticPage() {
           } catch {}
         }
         
+        const stand = FIXED_STANDS.find(s => s.id === standId);
         const savedReport: SavedReport = {
           id: Date.now().toString(),
           filterId: filter.id,
@@ -518,6 +520,7 @@ export default function CloudStatisticPage() {
           createdAt: Date.now(),
           createdBy,
           standId,
+          standName: stand?.name || standId,
           data: reportData,
           filterJson: JSON.stringify(filterObj)
         };
@@ -987,38 +990,41 @@ export default function CloudStatisticPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {savedReports.map((report) => {
-                    const stand = FIXED_STANDS.find(s => s.id === report.standId);
-                    return (
-                      <tr 
-                        key={report.id} 
-                        className="border-b border-line hover:bg-panel/60 cursor-pointer transition-colors"
-                        onClick={() => setSelectedReport(report)}
-                      >
-                        <td className="px-4 py-3 text-[13px] text-fog font-medium">{report.filterName}</td>
-                        <td className="px-4 py-3 text-[13px] text-mist">
-                          {new Date(report.createdAt).toLocaleString('ru-RU')}
-                        </td>
-                        <td className="px-4 py-3 text-[13px] text-mist">{report.createdBy}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-[11px] px-2 py-1 rounded bg-slate/20 text-slate font-semibold">
-                            {stand?.name || report.standId}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShareReport(report);
-                            }}
-                            className="text-[11px] px-2 py-1 rounded bg-amber/20 text-amber font-semibold hover:bg-amber/30 transition-colors mr-2"
-                          >
-                            Поделиться
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {savedReports.map((report) => (
+                    <tr 
+                      key={report.id} 
+                      className="border-b border-line hover:bg-panel/60 cursor-pointer transition-colors"
+                      onClick={() => setSelectedReport(report)}
+                    >
+                      <td className="px-4 py-3 text-[13px] text-fog font-medium">{report.filterName}</td>
+                      <td className="px-4 py-3 text-[13px] text-mist">
+                        {new Date(report.createdAt).toLocaleString('ru-RU')}
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-mist">{report.createdBy}</td>
+                      <td className="px-4 py-3">
+                        <span 
+                          className="text-[11px] px-2 py-1 rounded font-semibold"
+                          style={{ 
+                            backgroundColor: FIXED_STANDS.find(s => s.id === report.standId)?.color + '33' || '#80808033',
+                            color: FIXED_STANDS.find(s => s.id === report.standId)?.color || '#808080'
+                          }}
+                        >
+                          {report.standName}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShareReport(report);
+                          }}
+                          className="text-[11px] px-2 py-1 rounded bg-amber/20 text-amber font-semibold hover:bg-amber/30 transition-colors mr-2"
+                        >
+                          Поделиться
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1055,6 +1061,7 @@ export default function CloudStatisticPage() {
                 <div>
                   <h2 className="font-display text-[20px] font-bold text-fog">{selectedReport.filterName}</h2>
                   <p className="text-[12px] text-mist mt-1">
+                    Стенд: <span style={{ color: FIXED_STANDS.find(s => s.id === selectedReport.standId)?.color || '#808080', fontWeight: 'bold' }}>{selectedReport.standName}</span> | 
                     Получен: {new Date(selectedReport.createdAt).toLocaleString('ru-RU')} | Пользователь: {selectedReport.createdBy}
                   </p>
                 </div>
