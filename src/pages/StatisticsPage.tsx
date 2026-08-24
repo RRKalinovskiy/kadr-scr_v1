@@ -385,9 +385,8 @@ export default function CloudStatisticPage() {
         await new Promise(resolve => setTimeout(resolve, 1000));
         reportData = {
           rows: [
-            { method: "GET /api/users", calls: 120, errors: 2, duration: 450 },
-            { method: "POST /api/orders", calls: 85, errors: 5, duration: 890 },
-            { method: "GET /api/products", calls: 200, errors: 0, duration: 320 },
+            { name0: "CRMClients.LastDTActionDocSave", calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 },
+            { name0: "CoreV3.Collecting", calls: 3155, errors: 18, warnings: 6, maxDuration: 15603, sumDuration: 3989694, avgDuration: 1264.56 },
           ]
         };
       } else {
@@ -407,12 +406,12 @@ export default function CloudStatisticPage() {
               
               const Query = source.Query;
               const myQuery = new Query();
-              myQuery.where(filterRecord).limit(50);
+              myQuery.where(filterRecord).limit(1000);
               
               new source.SbisService({
                 endpoint: {
                   contract: 'CommonStatistic',
-                  address: window.wsConfig?.appRoot?.search('stats-cloud-interface') === -1 && `${standUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
+                  address: `${standUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
                 },
                 binding: {
                   query: 'GetReport'
@@ -424,13 +423,17 @@ export default function CloudStatisticPage() {
                 let parsedData: any = { rows: [] };
                 
                 if (result) {
-                  // Пробуем получить сырые данные через getRawData
-                  const rawData = result.getRawData ? result.getRawData() : result;
+                  // Пробуем получить сырые данные через getRawData или getData
+                  const rawData = result.getRawData ? result.getRawData() : (result.getData ? result.getData() : result);
                   
                   // Если есть массив rs (result set) - это основной случай
                   if (rawData && rawData.rs && Array.isArray(rawData.rs)) {
                     parsedData.rows = rawData.rs.map((item: any) => ({
-                      method: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
+                      // Используем name0 как основной идентификатор метода
+                      name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
+                      id: item.id,
+                      dimension: item.dimension,
+                      label: item.label,
                       calls: item['Количество вызовов'] || 0,
                       errors: item['Количество ошибок'] || 0,
                       warnings: item['Количество предупреждений'] || 0,
@@ -441,7 +444,10 @@ export default function CloudStatisticPage() {
                   } else if (Array.isArray(rawData)) {
                     // Если результат сразу массив
                     parsedData.rows = rawData.map((item: any) => ({
-                      method: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
+                      name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
+                      id: item.id,
+                      dimension: item.dimension,
+                      label: item.label,
                       calls: item['Количество вызовов'] || 0,
                       errors: item['Количество ошибок'] || 0,
                       warnings: item['Количество предупреждений'] || 0,
@@ -456,7 +462,7 @@ export default function CloudStatisticPage() {
                     // Тестовые данные если результат пустой или неправильной структуры
                     parsedData.rows = [
                       { 
-                        method: "CRMClients.LastDTActionDocSave",
+                        name0: "CRMClients.LastDTActionDocSave",
                         calls: 709399, 
                         errors: 48, 
                         warnings: 1602,
@@ -465,7 +471,7 @@ export default function CloudStatisticPage() {
                         avgDuration: 13
                       },
                       { 
-                        method: "CoreV3.Collecting",
+                        name0: "CoreV3.Collecting",
                         calls: 3155, 
                         errors: 18, 
                         warnings: 6,
@@ -479,7 +485,7 @@ export default function CloudStatisticPage() {
                   // Тестовые данные если результат null
                   parsedData.rows = [
                     { 
-                      method: "CRMClients.LastDTActionDocSave",
+                      name0: "CRMClients.LastDTActionDocSave",
                       calls: 709399, 
                       errors: 48, 
                       warnings: 1602,
@@ -1104,7 +1110,7 @@ export default function CloudStatisticPage() {
                       selectedReport.data.rows.map((row: any, idx: number) => (
                         <tr key={idx} className="border-b border-line hover:bg-panel/60">
                           <td className="px-4 py-3 text-[13px] text-fog font-mono">
-                            <div className="font-semibold">{row.method || 'N/A'}</div>
+                            <div className="font-semibold">{row.name0 || row.method || 'N/A'}</div>
                           </td>
                           <td className="px-4 py-3 text-[13px] text-fog text-right font-semibold">{row.calls ?? 0}</td>
                           <td className="px-4 py-3 text-[13px] text-right">
