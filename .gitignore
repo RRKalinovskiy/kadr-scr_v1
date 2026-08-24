@@ -5,17 +5,12 @@ build/
 
 # Dependencies
 node_modules/
-.venv/
-venv/
-__pycache__/
-*.egg-info/
 
-# Logs and temporary files
+# Logs and temp files
 *.log
 *.tmp
-*.swp
 
-# Environment variables
+# Environment
 .env
 .env.local
 .env.*
@@ -24,45 +19,15 @@ __pycache__/
 .vscode/
 .idea/
 
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Python specific
+# Python
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-*.so
-*.egg
-
-# JavaScript/Node specific
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Compiled binary files
-*.exe
-*.dll
-*.so
-*.dylib
-*.class
-*.jar
-*.war
-*.ear
-*.zip
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.7z
-*.rar
-*.gz
-*.bz2
-*.xz
-*.zst
+venv/
+.venv/
+.env
+.env.local
+.env.*
 ```
