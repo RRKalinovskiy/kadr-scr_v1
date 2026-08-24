@@ -10,6 +10,10 @@ interface ReportFilter {
   id: string;
   name: string;
   filterJson: string;
+  dateStart?: string;
+  dateEnd?: string;
+  timeStart?: string;
+  timeEnd?: string;
   createdAt: number;
 }
 
@@ -340,6 +344,14 @@ export default function CloudStatisticPage() {
     try {
       let reportData: any = null;
 
+      // Актуализируем фильтр с датами и временем
+      const filterObj = actualizeFilter(filter);
+      if (!filterObj) {
+        setReportError('Ошибка при формировании фильтра');
+        setReportLoading(false);
+        return null;
+      }
+
       // Проверяем наличие requirejs
       if (!window.requirejs) {
         console.warn('requirejs not available, using mock report');
@@ -363,84 +375,6 @@ export default function CloudStatisticPage() {
                 },
                 adapter: 'adapter.sbis'
               });
-              
-              // Парсим JSON фильтра из настроек или используем шаблон
-              let filterObj = {};
-              try {
-                filterObj = JSON.parse(filter.filterJson);
-              } catch {
-                // Используем шаблон по умолчанию
-                filterObj = {
-                  "filter": {
-                    "TZ": 3,
-                    "characteristics": {
-                      "rs": [
-                        { "id": "Количество вызовов", "order": "desc", "range": {} },
-                        { "id": "Количество ошибок", "order": null, "range": {} },
-                        { "id": "Общая продолжительность (мс)", "order": null, "range": {} },
-                        { "id": "Максимальная продолжительность (мс)", "order": null, "range": {} },
-                        { "id": "Средняя продолжительность (мс)", "order": null, "range": {} },
-                        { "id": "Количество предупреждений", "order": null, "range": {} }
-                      ],
-                      "meta": {}
-                    },
-                    "comparePeriodEnabled": false,
-                    "cube": "Вызовы",
-                    "dimensions": {
-                      "rs": [
-                        { "id": "time", "isTimeDim": true, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": "all_days", "timePeriod": { "start": "00:00", "end": "23:59" }, "timeStep": "ten_minute" },
-                        { "id": "Метод_Метод", "isTimeDim": null, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": null, "timePeriod": null, "timeStep": null },
-                        { "id": "Метод_МетодПсевдоним", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                        { "id": "WEB-Сервис_Семейство", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                        { "id": "WEB-Сервис_Приложение", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                        { "id": "WEB-Сервис_Сервис", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                        { "id": "WEB-Сервис_СистемноеИмя", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                        { "id": "БилдСервиса_БилдСервиса", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null }
-                      ],
-                      "meta": {}
-                    },
-                    "displayType": "Таблица",
-                    "period": {
-                      "rs": [{ "start": "2026-08-23T09:10:00.000Z", "end": "2026-08-23T12:10:00.000Z" }],
-                      "meta": {}
-                    },
-                    "version": "1"
-                  },
-                  "Фильтр": {
-                    "TZ": 3,
-                    "Версия": 1,
-                    "Вертикальная детализация": {
-                      "WEB-Сервис_Приложение": {},
-                      "WEB-Сервис_Семейство": {},
-                      "WEB-Сервис_Сервис": {},
-                      "WEB-Сервис_СистемноеИмя": {},
-                      "time": {
-                        "Filter": ["ten_minute"],
-                        "FilterDays": "all_days",
-                        "FilterHours": ["00:00", "23:59"],
-                        "Position": 1
-                      },
-                      "БилдСервиса_БилдСервиса": {},
-                      "Метод_Метод": { "Position": 2, "Top": 100 },
-                      "Метод_МетодПсевдоним": {}
-                    },
-                    "ВремяКонца": "15:10",
-                    "ВремяНачала": "12:10",
-                    "ДатаКонца": "23.08.26",
-                    "ДатаНачала": "23.08.26",
-                    "Куб": "Вызовы",
-                    "Отображение": "Таблица",
-                    "Характеристики для анализа": {
-                      "Количество вызовов": { "Top": true },
-                      "Количество ошибок": {},
-                      "Количество предупреждений": {},
-                      "Максимальная продолжительность (мс)": {},
-                      "Общая продолжительность (мс)": {},
-                      "Средняя продолжительность (мс)": {}
-                    }
-                  }
-                };
-              }
               
               filterRecord.set(filterObj);
               
@@ -559,7 +493,7 @@ export default function CloudStatisticPage() {
           createdBy,
           standId,
           data: reportData,
-          filterJson: filter.filterJson
+          filterJson: JSON.stringify(filterObj)
         };
         
         saveReport(savedReport);
@@ -576,6 +510,31 @@ export default function CloudStatisticPage() {
     }
   };
 
+  // Загрузка отчетов по всем стендам
+  const handleLoadAllReports = async () => {
+    if (!selectedFilterId) return;
+    
+    const filter = settings.reportFilters.find(f => f.id === selectedFilterId);
+    if (!filter) return;
+
+    setReportLoading(true);
+    setReportError(null);
+    
+    try {
+      // Последовательно загружаем отчеты для каждого стенда
+      for (const stand of FIXED_STANDS) {
+        const standState = getStandState(stand.id);
+        if (!standState.cookies) {
+          console.warn(`Стенд ${stand.name} не синхронизирован, пропускаем`);
+          continue;
+        }
+        await fetchReport(filter, stand.id, stand.baseUrl);
+      }
+    } catch (error) {
+      console.error('Error loading reports:', error);
+    }
+  };
+
   // Обработчик синхронизации (аутентификации) для конкретного стенда
   const handleSyncStand = (standId: string, standUrl: string) => {
     const creds = getStandCredentials(standId);
@@ -588,10 +547,21 @@ export default function CloudStatisticPage() {
 
   // Добавление нового фильтра в настройки
   const handleAddFilter = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const dateStart = today.toISOString().split('T')[0];
+    const dateEnd = tomorrow.toISOString().split('T')[0];
+    
     const newFilter: ReportFilter = {
       id: Date.now().toString(),
       name: `Фильтр ${settings.reportFilters.length + 1}`,
       filterJson: '',
+      dateStart,
+      dateEnd,
+      timeStart: '00:00',
+      timeEnd: '23:59',
       createdAt: Date.now(),
     };
     const newSettings = { ...settings, reportFilters: [...settings.reportFilters, newFilter] };
@@ -627,6 +597,136 @@ export default function CloudStatisticPage() {
       reportFilters: settings.reportFilters.map(f => f.id === filterId ? { ...f, filterJson: newJson } : f),
     };
     saveSettings(newSettings);
+  };
+
+  // Изменение даты начала
+  const handleUpdateFilterDateStart = (filterId: string, value: string) => {
+    const newSettings = {
+      ...settings,
+      reportFilters: settings.reportFilters.map(f => f.id === filterId ? { ...f, dateStart: value } : f),
+    };
+    saveSettings(newSettings);
+  };
+
+  // Изменение даты конца
+  const handleUpdateFilterDateEnd = (filterId: string, value: string) => {
+    const newSettings = {
+      ...settings,
+      reportFilters: settings.reportFilters.map(f => f.id === filterId ? { ...f, dateEnd: value } : f),
+    };
+    saveSettings(newSettings);
+  };
+
+  // Изменение времени начала
+  const handleUpdateFilterTimeStart = (filterId: string, value: string) => {
+    const newSettings = {
+      ...settings,
+      reportFilters: settings.reportFilters.map(f => f.id === filterId ? { ...f, timeStart: value } : f),
+    };
+    saveSettings(newSettings);
+  };
+
+  // Изменение времени конца
+  const handleUpdateFilterTimeEnd = (filterId: string, value: string) => {
+    const newSettings = {
+      ...settings,
+      reportFilters: settings.reportFilters.map(f => f.id === filterId ? { ...f, timeEnd: value } : f),
+    };
+    saveSettings(newSettings);
+  };
+
+  // Актуализация фильтра с датами и временем
+  const actualizeFilter = (filter: ReportFilter): any => {
+    try {
+      let filterObj = {};
+      if (filter.filterJson) {
+        filterObj = JSON.parse(filter.filterJson);
+      } else {
+        // Шаблон по умолчанию
+        filterObj = {
+          "filter": {
+            "TZ": 3,
+            "characteristics": {
+              "rs": [
+                { "id": "Количество вызовов", "order": "desc", "range": {} },
+                { "id": "Количество ошибок", "order": null, "range": {} },
+                { "id": "Общая продолжительность (мс)", "order": null, "range": {} },
+                { "id": "Максимальная продолжительность (мс)", "order": null, "range": {} },
+                { "id": "Средняя продолжительность (мс)", "order": null, "range": {} },
+                { "id": "Количество предупреждений", "order": null, "range": {} }
+              ],
+              "meta": {}
+            },
+            "comparePeriodEnabled": false,
+            "cube": "Вызовы",
+            "dimensions": {
+              "rs": [
+                { "id": "time", "isTimeDim": true, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": "all_days", "timePeriod": { "start": "00:00", "end": "23:59" }, "timeStep": "ten_minute" },
+                { "id": "Метод_Метод", "isTimeDim": null, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": null, "timePeriod": null, "timeStep": null }
+              ],
+              "meta": {}
+            },
+            "displayType": "Таблица",
+            "period": {
+              "rs": [{ "start": "2026-08-23T09:10:00.000Z", "end": "2026-08-23T12:10:00.000Z" }],
+              "meta": {}
+            },
+            "version": "1"
+          },
+          "Фильтр": {
+            "TZ": 3,
+            "Версия": 1,
+            "Вертикальная детализация": {},
+            "Куб": "Вызовы",
+            "Отображение": "Таблица"
+          }
+        };
+      }
+
+      // Обновляем period и timePeriod из значений формы
+      const dateStart = filter.dateStart || '2026-08-23';
+      const dateEnd = filter.dateEnd || '2026-08-23';
+      const timeStart = filter.timeStart || '00:00';
+      const timeEnd = filter.timeEnd || '23:59';
+
+      // Формируем ISO даты для period
+      const startDateTime = `${dateStart}T${timeStart}:00.000Z`;
+      const endDateTime = `${dateEnd}T${timeEnd}:00.000Z`;
+
+      // Обновляем period в filter.filter
+      if (filterObj.filter && filterObj.filter.period) {
+        filterObj.filter.period.rs = [{ start: startDateTime, end: endDateTime }];
+      }
+
+      // Обновляем timePeriod в dimensions
+      if (filterObj.filter && filterObj.filter.dimensions && filterObj.filter.dimensions.rs) {
+        const timeDim = filterObj.filter.dimensions.rs.find((d: any) => d.id === 'time');
+        if (timeDim && timeDim.timePeriod) {
+          timeDim.timePeriod.start = timeStart;
+          timeDim.timePeriod.end = timeEnd;
+        }
+      }
+
+      // Обновляем даты в Фильтр
+      if (filterObj.Фильтр) {
+        const [y1, m1, d1] = dateStart.split('-');
+        const [y2, m2, d2] = dateEnd.split('-');
+        filterObj.Фильтр.ДатаНачала = `${d1}.${m1}.${y1.slice(-2)}`;
+        filterObj.Фильтр.ДатаКонца = `${d2}.${m2}.${y2.slice(-2)}`;
+        filterObj.Фильтр.ВремяНачала = timeStart;
+        filterObj.Фильтр.ВремяКонца = timeEnd;
+        
+        // Обновляем период в вертикальной детализации
+        if (filterObj.Фильтр['Вертикальная детализация'] && filterObj.Фильтр['Вертикальная детализация'].time) {
+          filterObj.Фильтр['Вертикальная детализация'].time.FilterHours = [timeStart, timeEnd];
+        }
+      }
+
+      return filterObj;
+    } catch (e) {
+      console.error('Error actualizing filter:', e);
+      return null;
+    }
   };
 
   // Установка фильтра по умолчанию
@@ -799,10 +899,7 @@ export default function CloudStatisticPage() {
                 {selectedFilterId && (
                   <button
                     onClick={async () => {
-                      const filter = settings.reportFilters.find(f => f.id === selectedFilterId);
-                      if (filter && FIXED_STANDS.length > 0) {
-                        await fetchReport(filter, FIXED_STANDS[0].id, FIXED_STANDS[0].baseUrl);
-                      }
+                      await handleLoadAllReports();
                     }}
                     disabled={reportLoading}
                     className="flex items-center gap-2 rounded-lg bg-sage px-4 py-3 text-[13px] font-bold text-[#17211d] transition-all hover:bg-sage/80 disabled:opacity-50"
@@ -815,7 +912,7 @@ export default function CloudStatisticPage() {
                     ) : (
                       <>
                         <Download size={18} />
-                        Загрузить отчет
+                        Загрузить отчеты по всем стендам
                       </>
                     )}
                   </button>
