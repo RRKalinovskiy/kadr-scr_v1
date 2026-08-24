@@ -23,10 +23,8 @@ interface SavedReport {
   filterName: string;
   createdAt: number;
   createdBy: string;
-  standId: string;
-  standName: string;
-  data: any;
   filterJson: string;
+  standData: Record<string, any>; // Данные по каждому стенду: { fix: {rows: [...]}, test: {...}, pre-test: {...} }
 }
 
 interface StatisticsSettings {
@@ -83,6 +81,7 @@ export default function CloudStatisticPage() {
   // Saved reports list
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<SavedReport | null>(null);
+  const [currentStandView, setCurrentStandView] = useState<string>("fix-stand"); // Текущий выбранный стенд для просмотра
   
   // Selected filter for reports
   const [selectedFilterId, setSelectedFilterId] = useState<string>("");
@@ -357,48 +356,98 @@ export default function CloudStatisticPage() {
     }
   };
 
-  // Функция получения отчета с использованием cookie
-  const fetchReport = async (filter: ReportFilter, standId: string, standUrl: string) => {
-    const standState = getStandState(standId);
-    if (!standState.cookies) {
-      setReportError('Стенд не синхронизирован. Выполните аутентификацию.');
-      return null;
-    }
+  // Функция получения отчета с использованием cookie (удалена, используется fetchReportForStand)
+  
+  // Загрузка отчетов по всем стендам
+  const handleLoadAllReports = async () => {
+    if (!selectedFilterId) return;
+    
+    const filter = settings.reportFilters.find(f => f.id === selectedFilterId);
+    if (!filter) return;
 
     setReportLoading(true);
     setReportError(null);
+    
+    const standData: Record<string, any> = {};
+    
+    try {
+      // Последовательно загружаем отчеты для каждого стенда
+      for (const stand of FIXED_STANDS) {
+        const standState = getStandState(stand.id);
+        if (!standState.cookies) {
+          console.warn(`Стенд ${stand.name} не синхронизирован, пропускаем`);
+          standData[stand.id] = { rows: [], error: 'Не синхронизирован' };
+          continue;
+        }
+        
+        const reportResult = await fetchReportForStand(filter, stand.id, stand.baseUrl);
+        standData[stand.id] = reportResult || { rows: [] };
+      }
+      
+      // Сохраняем отчет с данными по всем стендам
+      if (Object.keys(standData).length > 0) {
+        const accountId = getAccountId();
+        const payload = localStorage.getItem("kadr-regapi-token");
+        let createdBy = "Unknown";
+        if (payload) {
+          try {
+            const decoded = JSON.parse(atob(payload.split('.')[1]));
+            createdBy = decoded.name || decoded.email || accountId;
+          } catch {}
+        }
+        
+        const savedReport: SavedReport = {
+          id: Date.now().toString(),
+          filterId: filter.id,
+          filterName: filter.name,
+          createdAt: Date.now(),
+          createdBy,
+          filterJson: JSON.stringify(actualizeFilter(filter)),
+          standData
+        };
+        
+        saveReport(savedReport);
+        setSelectedReport(savedReport);
+        setCurrentStandView(FIXED_STANDS[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading reports:', error);
+      setReportError('Ошибка при загрузке отчетов: ' + (error as Error).message);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  // Функция получения отчета для конкретного стенда
+  const fetchReportForStand = async (filter: ReportFilter, standId: string, standUrl: string): Promise<any> => {
+    const standState = getStandState(standId);
+    if (!standState.cookies) {
+      return { rows: [], error: 'Не синхронизирован' };
+    }
 
     try {
       let reportData: any = null;
-
-      // Актуализируем фильтр с датами и временем
       const filterObj = actualizeFilter(filter);
       if (!filterObj) {
-        setReportError('Ошибка при формировании фильтра');
-        setReportLoading(false);
-        return null;
+        return { rows: [], error: 'Ошибка формирования фильтра' };
       }
 
-      // Проверяем наличие requirejs
       if (!window.requirejs) {
         console.warn('requirejs not available, using mock report');
         await new Promise(resolve => setTimeout(resolve, 1000));
+        const standPrefix = standId.toUpperCase().replace('-STAND', '');
         reportData = {
           rows: [
-            { name0: "CRMClients.LastDTActionDocSave", calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 },
-            { name0: "CoreV3.Collecting", calls: 3155, errors: 18, warnings: 6, maxDuration: 15603, sumDuration: 3989694, avgDuration: 1264.56 },
+            { name0: `${standPrefix}_CRMClients.LastDTActionDocSave`, calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 },
+            { name0: `${standPrefix}_CoreV3.Collecting`, calls: 3155, errors: 18, warnings: 6, maxDuration: 15603, sumDuration: 3989694, avgDuration: 1264.56 },
           ]
         };
       } else {
-        // Создаем фильтр по образцу из требования
         reportData = await new Promise((resolve, reject) => {
           window.requirejs(['Types/source', 'Types/entity'], function(source: any, entity: any) {
             try {
               const filterRecord = new entity.Record({
-                format: {
-                  "filter": "record",
-                  "Фильтр": "record"
-                },
+                format: { "filter": "record", "Фильтр": "record" },
                 adapter: 'adapter.sbis'
               });
               
@@ -413,23 +462,17 @@ export default function CloudStatisticPage() {
                   contract: 'CommonStatistic',
                   address: `${standUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
                 },
-                binding: {
-                  query: 'GetReport'
-                }
+                binding: { query: 'GetReport' }
               }).query(myQuery).addBoth(function(result: any) {
-                console.info('Report result:', result);
+                console.info('Report result for stand:', standId, result);
                 
-                // Парсим результат от CommonStatistic.GetReport
                 let parsedData: any = { rows: [] };
                 
                 if (result) {
-                  // Пробуем получить сырые данные через getRawData или getData
                   const rawData = result.getRawData ? result.getRawData() : (result.getData ? result.getData() : result);
                   
-                  // Если есть массив rs (result set) - это основной случай
                   if (rawData && rawData.rs && Array.isArray(rawData.rs)) {
                     parsedData.rows = rawData.rs.map((item: any) => ({
-                      // Используем name0 как основной идентификатор метода
                       name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
                       id: item.id,
                       dimension: item.dimension,
@@ -442,7 +485,6 @@ export default function CloudStatisticPage() {
                       avgDuration: item['Средняя продолжительность (мс)'] || 0
                     }));
                   } else if (Array.isArray(rawData)) {
-                    // Если результат сразу массив
                     parsedData.rows = rawData.map((item: any) => ({
                       name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
                       id: item.id,
@@ -456,44 +498,17 @@ export default function CloudStatisticPage() {
                       avgDuration: item['Средняя продолжительность (мс)'] || 0
                     }));
                   } else if (rawData && rawData.rows) {
-                    // Если уже есть структура rows
                     parsedData = rawData;
                   } else {
-                    // Тестовые данные если результат пустой или неправильной структуры
+                    const standPrefix = standId.toUpperCase().replace('-STAND', '');
                     parsedData.rows = [
-                      { 
-                        name0: "CRMClients.LastDTActionDocSave",
-                        calls: 709399, 
-                        errors: 48, 
-                        warnings: 1602,
-                        maxDuration: 2805,
-                        sumDuration: 9221075,
-                        avgDuration: 13
-                      },
-                      { 
-                        name0: "CoreV3.Collecting",
-                        calls: 3155, 
-                        errors: 18, 
-                        warnings: 6,
-                        maxDuration: 15603,
-                        sumDuration: 3989694,
-                        avgDuration: 1264.56
-                      }
+                      { name0: `${standPrefix}_CRMClients.LastDTActionDocSave`, calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 },
+                      { name0: `${standPrefix}_CoreV3.Collecting`, calls: 3155, errors: 18, warnings: 6, maxDuration: 15603, sumDuration: 3989694, avgDuration: 1264.56 }
                     ];
                   }
                 } else {
-                  // Тестовые данные если результат null
-                  parsedData.rows = [
-                    { 
-                      name0: "CRMClients.LastDTActionDocSave",
-                      calls: 709399, 
-                      errors: 48, 
-                      warnings: 1602,
-                      maxDuration: 2805,
-                      sumDuration: 9221075,
-                      avgDuration: 13
-                    }
-                  ];
+                  const standPrefix = standId.toUpperCase().replace('-STAND', '');
+                  parsedData.rows = [{ name0: `${standPrefix}_CRMClients.LastDTActionDocSave`, calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 }];
                 }
                 
                 resolve(parsedData);
@@ -506,67 +521,10 @@ export default function CloudStatisticPage() {
         });
       }
       
-      // Сохраняем отчет
-      if (reportData) {
-        const accountId = getAccountId();
-        const payload = localStorage.getItem("kadr-regapi-token");
-        let createdBy = "Unknown";
-        if (payload) {
-          try {
-            const decoded = JSON.parse(atob(payload.split('.')[1]));
-            createdBy = decoded.name || decoded.email || accountId;
-          } catch {}
-        }
-        
-        const stand = FIXED_STANDS.find(s => s.id === standId);
-        const savedReport: SavedReport = {
-          id: Date.now().toString(),
-          filterId: filter.id,
-          filterName: filter.name,
-          createdAt: Date.now(),
-          createdBy,
-          standId,
-          standName: stand?.name || standId,
-          data: reportData,
-          filterJson: JSON.stringify(filterObj)
-        };
-        
-        saveReport(savedReport);
-        setSelectedReport(savedReport);
-      }
-      
       return reportData;
     } catch (error) {
-      console.error('Failed to fetch report:', error);
-      setReportError('Ошибка при получении отчета: ' + (error as Error).message);
-      return null;
-    } finally {
-      setReportLoading(false);
-    }
-  };
-
-  // Загрузка отчетов по всем стендам
-  const handleLoadAllReports = async () => {
-    if (!selectedFilterId) return;
-    
-    const filter = settings.reportFilters.find(f => f.id === selectedFilterId);
-    if (!filter) return;
-
-    setReportLoading(true);
-    setReportError(null);
-    
-    try {
-      // Последовательно загружаем отчеты для каждого стенда
-      for (const stand of FIXED_STANDS) {
-        const standState = getStandState(stand.id);
-        if (!standState.cookies) {
-          console.warn(`Стенд ${stand.name} не синхронизирован, пропускаем`);
-          continue;
-        }
-        await fetchReport(filter, stand.id, stand.baseUrl);
-      }
-    } catch (error) {
-      console.error('Error loading reports:', error);
+      console.error('Failed to fetch report for stand:', standId, error);
+      return { rows: [], error: (error as Error).message };
     }
   };
 
@@ -991,7 +949,6 @@ export default function CloudStatisticPage() {
                     <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Название отчета</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Дата получения</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Пользователь</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Стенд</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Действия</th>
                   </tr>
                 </thead>
@@ -1000,24 +957,16 @@ export default function CloudStatisticPage() {
                     <tr 
                       key={report.id} 
                       className="border-b border-line hover:bg-panel/60 cursor-pointer transition-colors"
-                      onClick={() => setSelectedReport(report)}
+                      onClick={() => {
+                        setSelectedReport(report);
+                        setCurrentStandView(FIXED_STANDS[0].id);
+                      }}
                     >
                       <td className="px-4 py-3 text-[13px] text-fog font-medium">{report.filterName}</td>
                       <td className="px-4 py-3 text-[13px] text-mist">
                         {new Date(report.createdAt).toLocaleString('ru-RU')}
                       </td>
                       <td className="px-4 py-3 text-[13px] text-mist">{report.createdBy}</td>
-                      <td className="px-4 py-3">
-                        <span 
-                          className="text-[11px] px-2 py-1 rounded font-semibold"
-                          style={{ 
-                            backgroundColor: FIXED_STANDS.find(s => s.id === report.standId)?.color + '33' || '#80808033',
-                            color: FIXED_STANDS.find(s => s.id === report.standId)?.color || '#808080'
-                          }}
-                        >
-                          {report.standName}
-                        </span>
-                      </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={(e) => {
@@ -1037,7 +986,7 @@ export default function CloudStatisticPage() {
           </div>
         )}
 
-        {/* Selected Report Detail View */}
+        {/* Selected Report Detail View with Stand Switcher */}
         {selectedReport && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -1053,7 +1002,7 @@ export default function CloudStatisticPage() {
                 </button>
               </div>
               <a
-                href={`${FIXED_STANDS.find(s => s.id === selectedReport.standId)?.baseUrl || '#'}/page/statistics-new`}
+                href={`${FIXED_STANDS.find(s => s.id === currentStandView)?.baseUrl || '#'}/page/statistics-new`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[13px] text-amber hover:text-amber2 font-semibold underline"
@@ -1067,7 +1016,6 @@ export default function CloudStatisticPage() {
                 <div>
                   <h2 className="font-display text-[20px] font-bold text-fog">{selectedReport.filterName}</h2>
                   <p className="text-[12px] text-mist mt-1">
-                    Стенд: <span style={{ color: FIXED_STANDS.find(s => s.id === selectedReport.standId)?.color || '#808080', fontWeight: 'bold' }}>{selectedReport.standName}</span> | 
                     Получен: {new Date(selectedReport.createdAt).toLocaleString('ru-RU')} | Пользователь: {selectedReport.createdBy}
                   </p>
                 </div>
@@ -1091,6 +1039,40 @@ export default function CloudStatisticPage() {
                 </div>
               </div>
               
+              {/* Stand Switcher Buttons */}
+              <div className="flex gap-2 mb-6">
+                {FIXED_STANDS.map((stand) => {
+                  const standData = selectedReport.standData[stand.id];
+                  const hasData = standData && standData.rows && standData.rows.length > 0;
+                  return (
+                    <button
+                      key={stand.id}
+                      onClick={() => setCurrentStandView(stand.id)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-bold transition-all ${
+                        currentStandView === stand.id
+                          ? 'bg-amber text-[#17211d]'
+                          : 'bg-panel border border-line text-fog hover:bg-raised'
+                      }`}
+                      style={currentStandView !== stand.id ? { borderColor: stand.color } : {}}
+                    >
+                      <div 
+                        className="w-2.5 h-2.5 rounded-full" 
+                        style={{ backgroundColor: stand.color }}
+                      />
+                      {stand.name}
+                      {!hasData && <span className="text-[10px] opacity-60">(нет данных)</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {/* Current Stand Info */}
+              <div className="mb-4 p-3 bg-deep/50 rounded-lg border border-border">
+                <p className="text-[12px] text-mist">
+                  Просмотр данных стенда: <span style={{ color: FIXED_STANDS.find(s => s.id === currentStandView)?.color, fontWeight: 'bold' }}>{FIXED_STANDS.find(s => s.id === currentStandView)?.name}</span>
+                </p>
+              </div>
+              
               {/* Report Data Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -1106,11 +1088,22 @@ export default function CloudStatisticPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedReport.data?.rows && Array.isArray(selectedReport.data.rows) ? (
-                      selectedReport.data.rows.map((row: any, idx: number) => (
+                    {(() => {
+                      const currentStandData = selectedReport.standData[currentStandView];
+                      const rows = currentStandData?.rows || [];
+                      if (rows.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-8 text-center text-mist">
+                              Нет данных для отображения{currentStandData?.error ? `: ${currentStandData.error}` : ''}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return rows.map((row: any, idx: number) => (
                         <tr key={idx} className="border-b border-line hover:bg-panel/60">
                           <td className="px-4 py-3 text-[13px] text-fog font-mono">
-                            <div className="font-semibold">{row.name0 || row.method || 'N/A'}</div>
+                            <div className="font-semibold">{row.name0 || 'N/A'}</div>
                           </td>
                           <td className="px-4 py-3 text-[13px] text-fog text-right font-semibold">{row.calls ?? 0}</td>
                           <td className="px-4 py-3 text-[13px] text-right">
@@ -1125,14 +1118,8 @@ export default function CloudStatisticPage() {
                           <td className="px-4 py-3 text-[13px] text-fog text-right">{row.sumDuration ?? 0}</td>
                           <td className="px-4 py-3 text-[13px] text-fog text-right">{row.avgDuration ?? 0}</td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-mist">
-                          Нет данных для отображения
-                        </td>
-                      </tr>
-                    )}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
