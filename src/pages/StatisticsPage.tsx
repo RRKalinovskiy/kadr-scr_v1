@@ -5,6 +5,8 @@ import { backend } from "../backend";
 import type { PublicUser } from "../backend";
 import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download, Plus, Eye, EyeOff } from "lucide-react";
 import { loadStateFor, saveStateFor, type PersistedState } from "../data";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ReportFilter {
   id: string;
@@ -195,10 +197,64 @@ export default function CloudStatisticPage() {
     });
   };
 
-  // Скачивание отчета в PDF (заглушка)
+  // Скачивание отчета в PDF
   const handleDownloadReport = (report: SavedReport) => {
-    alert('Функция экспорта в PDF будет реализована в следующей версии');
-    // В реальности здесь была бы генерация PDF через библиотеку типа jsPDF
+    const doc = new jsPDF();
+    
+    // Заголовок отчета
+    doc.setFontSize(18);
+    doc.text(`Отчет: ${report.filterName}`, 14, 20);
+    
+    // Информация о стенде и дате
+    doc.setFontSize(11);
+    const standLabel = currentStandView === 'fix' ? 'Fix' : currentStandView === 'test' ? 'Test' : 'Pre-Test';
+    doc.text(`Стенд: ${standLabel}`, 14, 30);
+    doc.text(`Дата формирования: ${new Date(report.createdAt).toLocaleString('ru-RU')}`, 14, 36);
+    
+    // Получаем данные для текущего стенда
+    const standData = report.standData[currentStandView];
+    const rows = standData?.rows || [];
+    
+    // Подготовка данных для таблицы
+    const tableColumn = ["Метод", "Кол-во вызовов", "Кол-во ошибок", "Кол-во предупреждений", "Max (мс)", "Sum (мс)", "Ave (мс)"];
+    const tableRows: any[][] = [];
+    
+    rows.forEach((row: any) => {
+      const rowData = [
+        row.name0 || row.method || '',
+        row['Количество вызовов'] ?? 0,
+        row['Количество ошибок'] ?? 0,
+        row['Количество предупреждений'] ?? 0,
+        row['Максимальная продолжительность (мс)'] ?? 0,
+        row['Общая продолжительность (мс)'] ?? 0,
+        row['Средняя продолжительность (мс)'] ?? 0
+      ];
+      tableRows.push(rowData);
+    });
+    
+    // Генерация таблицы
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 45,
+      theme: 'grid',
+      styles: {
+        fontSize: 8,
+        cellPadding: 2
+      },
+      headStyles: {
+        fillColor: [245, 158, 11], // Янтарный цвет
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      }
+    });
+    
+    // Сохранение файла
+    const fileName = `Otchet_${report.filterName}_${standLabel}.pdf`;
+    doc.save(fileName);
   };
 
   useEffect(() => {
