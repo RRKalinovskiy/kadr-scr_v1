@@ -511,7 +511,8 @@ export default function CloudStatisticPage() {
               
               const Query = source.Query;
               const myQuery = new Query();
-              myQuery.where(filterRecord).limit(1000);
+              // Увеличиваем лимит до 5000 для получения полного отчета
+              myQuery.where(filterRecord).limit(5000);
               
               new source.SbisService({
                 endpoint: {
@@ -525,41 +526,78 @@ export default function CloudStatisticPage() {
                 let parsedData: any = { rows: [] };
                 
                 if (result) {
-                  // Получаем сырые данные
-                  const rawData = result.getRawData ? result.getRawData() : (result.getData ? result.getData() : result);
+                  // Получаем сырые данные - проверяем несколько возможных форматов ответа
+                  let rawData: any = null;
+                  
+                  if (result.getRawData) {
+                    rawData = result.getRawData();
+                  } else if (result.getData) {
+                    rawData = result.getData();
+                  } else if (result.rs) {
+                    rawData = result;
+                  } else if (result.data && result.data.rs) {
+                    rawData = result.data;
+                  } else {
+                    rawData = result;
+                  }
+                  
+                  console.log('Raw report data structure:', JSON.stringify(rawData, null, 2).substring(0, 500));
                   
                   if (rawData && rawData.rs && Array.isArray(rawData.rs)) {
                     // Парсим все записи из rs без фильтрации по dimension
-                    parsedData.rows = rawData.rs.map((item: any) => ({
-                      name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
-                      id: item.id,
-                      dimension: item.dimension,
-                      label: item.label,
-                      // Сохраняем оригинальные поля с русскими названиями
-                      'Количество вызовов': item['Количество вызовов'] ?? 0,
-                      'Количество ошибок': item['Количество ошибок'] ?? 0,
-                      'Количество предупреждений': item['Количество предупреждений'] ?? 0,
-                      'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
-                      'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
-                      'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
-                    }));
+                    parsedData.rows = rawData.rs.map((item: any) => {
+                      // Извлекаем имя метода из name0, убирая возможные префиксы стендов
+                      let methodName = item.name0 || '';
+                      if (!methodName && item.id) {
+                        // Если нет name0, пытаемся извлечь из id (формат: Method$$User)
+                        const parts = item.id.split('$$');
+                        methodName = parts[0] || '';
+                      }
+                      
+                      // Удаляем префиксы стендов если они есть
+                      methodName = methodName.replace(/^(FIX|TEST|PRE-TEST):\s*/i, '');
+                      
+                      return {
+                        name0: methodName || 'Неизвестно',
+                        id: item.id,
+                        dimension: item.dimension,
+                        label: item.label,
+                        // Сохраняем оригинальные поля с русскими названиями
+                        'Количество вызовов': item['Количество вызовов'] ?? 0,
+                        'Количество ошибок': item['Количество ошибок'] ?? 0,
+                        'Количество предупреждений': item['Количество предупреждений'] ?? 0,
+                        'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
+                        'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
+                        'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
+                      };
+                    });
                   } else if (Array.isArray(rawData)) {
                     // Если результат сразу массив
-                    parsedData.rows = rawData.map((item: any) => ({
-                      name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
-                      id: item.id,
-                      dimension: item.dimension,
-                      label: item.label,
-                      'Количество вызовов': item['Количество вызовов'] ?? 0,
-                      'Количество ошибок': item['Количество ошибок'] ?? 0,
-                      'Количество предупреждений': item['Количество предупреждений'] ?? 0,
-                      'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
-                      'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
-                      'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
-                    }));
-                  } else if (rawData && rawData.rows) {
+                    parsedData.rows = rawData.map((item: any) => {
+                      let methodName = item.name0 || '';
+                      if (!methodName && item.id) {
+                        const parts = item.id.split('$$');
+                        methodName = parts[0] || '';
+                      }
+                      methodName = methodName.replace(/^(FIX|TEST|PRE-TEST):\s*/i, '');
+                      
+                      return {
+                        name0: methodName || 'Неизвестно',
+                        id: item.id,
+                        dimension: item.dimension,
+                        label: item.label,
+                        'Количество вызовов': item['Количество вызовов'] ?? 0,
+                        'Количество ошибок': item['Количество ошибок'] ?? 0,
+                        'Количество предупреждений': item['Количество предупреждений'] ?? 0,
+                        'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
+                        'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
+                        'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
+                      };
+                    });
+                  } else if (rawData && Array.isArray(rawData.rows)) {
                     parsedData = rawData;
                   } else {
+                    console.warn('Unknown data format, using fallback');
                     // Fallback mock-данные без префикса
                     parsedData.rows = [
                       { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 },
@@ -567,6 +605,7 @@ export default function CloudStatisticPage() {
                     ];
                   }
                 } else {
+                  console.warn('Empty result, using fallback');
                   parsedData.rows = [
                     { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 }
                   ];
