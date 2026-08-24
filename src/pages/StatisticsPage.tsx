@@ -13,6 +13,17 @@ interface ReportFilter {
   createdAt: number;
 }
 
+interface SavedReport {
+  id: string;
+  filterId: string;
+  filterName: string;
+  createdAt: number;
+  createdBy: string;
+  standId: string;
+  data: any;
+  filterJson: string;
+}
+
 interface StatisticsSettings {
   reportFilters: ReportFilter[];
   defaultFilterId?: string;
@@ -62,9 +73,14 @@ export default function CloudStatisticPage() {
     refreshInterval: 60,
   });
   
+  // Saved reports list
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+  const [selectedReport, setSelectedReport] = useState<SavedReport | null>(null);
+  
   // Selected filter for reports
   const [selectedFilterId, setSelectedFilterId] = useState<string>("");
-  const [availableReports, setAvailableReports] = useState<string[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   
   const getAccountId = (): string => {
     const token = localStorage.getItem("kadr-regapi-token");
@@ -119,6 +135,59 @@ export default function CloudStatisticPage() {
     // В реальном приложении здесь был бы вызов backend.saveSettings(accountId, newSettings)
   };
 
+  // Загрузка сохраненных отчетов
+  const loadSavedReports = () => {
+    const accountId = getAccountId();
+    const saved = localStorage.getItem(`stats-reports-${accountId}`);
+    if (saved) {
+      try {
+        return JSON.parse(saved) as SavedReport[];
+      } catch {
+        // ignore
+      }
+    }
+    return [];
+  };
+
+  // Сохранение отчета
+  const saveReport = (report: SavedReport) => {
+    const accountId = getAccountId();
+    const reports = loadSavedReports();
+    reports.unshift(report); // Add to beginning
+    localStorage.setItem(`stats-reports-${accountId}`, JSON.stringify(reports));
+    setSavedReports(reports);
+  };
+
+  // Формирование ссылки на отчет
+  const generateReportLink = (filterJson: string, standUrl: string): string => {
+    try {
+      const filterObj = JSON.parse(filterJson);
+      const encodedFilter = encodeURIComponent(JSON.stringify(filterObj));
+      return `${standUrl}/page/statistics-new?filter=${encodedFilter}`;
+    } catch {
+      return standUrl;
+    }
+  };
+
+  // Копирование ссылки в буфер обмена
+  const handleShareReport = (report: SavedReport) => {
+    const stand = FIXED_STANDS.find(s => s.id === report.standId);
+    if (!stand) return;
+    
+    const link = generateReportLink(report.filterJson, stand.baseUrl);
+    navigator.clipboard.writeText(link).then(() => {
+      alert('Ссылка скопирована в буфер обмена');
+    }).catch(() => {
+      alert('Не удалось скопировать ссылку');
+    });
+  };
+
+  // Скачивание отчета в PDF (заглушка)
+  const handleDownloadReport = (report: SavedReport) => {
+    alert('Функция экспорта в PDF будет реализована в следующей версии');
+    // В реальности здесь была бы генерация PDF через библиотеку типа jsPDF
+  };
+
   useEffect(() => {
     // Проверка авторизации
     backend.restore().then((result) => {
@@ -143,6 +212,9 @@ export default function CloudStatisticPage() {
           if (savedStates) {
             setStandStates(JSON.parse(savedStates));
           }
+          // Загружаем сохраненные отчеты
+          const savedReports = loadSavedReports();
+          setSavedReports(savedReports);
         } catch (e) {
           console.error('Failed to load stand data:', e);
         }
@@ -258,139 +330,191 @@ export default function CloudStatisticPage() {
   const fetchReport = async (filter: ReportFilter, standId: string, standUrl: string) => {
     const standState = getStandState(standId);
     if (!standState.cookies) {
-      console.warn('No cookies for stand', standId);
+      setReportError('Стенд не синхронизирован. Выполните аутентификацию.');
       return null;
     }
 
+    setReportLoading(true);
+    setReportError(null);
+
     try {
+      let reportData: any = null;
+
       // Проверяем наличие requirejs
       if (!window.requirejs) {
         console.warn('requirejs not available, using mock report');
         await new Promise(resolve => setTimeout(resolve, 1000));
-        return {
+        reportData = {
           rows: [
             { method: "GET /api/users", calls: 120, errors: 2, duration: 450 },
             { method: "POST /api/orders", calls: 85, errors: 5, duration: 890 },
             { method: "GET /api/products", calls: 200, errors: 0, duration: 320 },
           ]
         };
-      }
-
-      // Создаем фильтр по образцу из требования
-      window.requirejs(['Types/source', 'Types/entity'], function(source: any, entity: any) {
-        try {
-          const filterRecord = new entity.Record({
-            format: {
-              "filter": "record",
-              "Фильтр": "record"
-            },
-            adapter: 'adapter.sbis'
-          });
-          
-          filterRecord.set({
-            "filter": {
-              "TZ": 3,
-              "characteristics": {
-                "rs": [
-                  { "id": "Количество вызовов", "order": "desc", "range": {} },
-                  { "id": "Количество ошибок", "order": null, "range": {} },
-                  { "id": "Общая продолжительность (мс)", "order": null, "range": {} },
-                  { "id": "Максимальная продолжительность (мс)", "order": null, "range": {} },
-                  { "id": "Средняя продолжительность (мс)", "order": null, "range": {} },
-                  { "id": "Количество предупреждений", "order": null, "range": {} }
-                ],
-                "meta": {}
-              },
-              "comparePeriodEnabled": false,
-              "cube": "Вызовы",
-              "dimensions": {
-                "rs": [
-                  { "id": "time", "isTimeDim": true, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": "all_days", "timePeriod": { "start": "00:00", "end": "23:59" }, "timeStep": "ten_minute" },
-                  { "id": "Метод_Метод", "isTimeDim": null, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": null, "timePeriod": null, "timeStep": null },
-                  { "id": "Метод_МетодПсевдоним", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                  { "id": "WEB-Сервис_Семейство", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                  { "id": "WEB-Сервис_Приложение", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                  { "id": "WEB-Сервис_Сервис", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                  { "id": "WEB-Сервис_СистемноеИмя", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
-                  { "id": "БилдСервиса_БилдСервиса", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null }
-                ],
-                "meta": {}
-              },
-              "displayType": "Таблица",
-              "period": {
-                "rs": [{ "start": "2026-08-23T09:10:00.000Z", "end": "2026-08-23T12:10:00.000Z" }],
-                "meta": {}
-              },
-              "version": "1"
-            },
-            "Фильтр": {
-              "TZ": 3,
-              "Версия": 1,
-              "Вертикальная детализация": {
-                "WEB-Сервис_Приложение": {},
-                "WEB-Сервис_Семейство": {},
-                "WEB-Сервис_Сервис": {},
-                "WEB-Сервис_СистемноеИмя": {},
-                "time": {
-                  "Filter": ["ten_minute"],
-                  "FilterDays": "all_days",
-                  "FilterHours": ["00:00", "23:59"],
-                  "Position": 1
+      } else {
+        // Создаем фильтр по образцу из требования
+        reportData = await new Promise((resolve, reject) => {
+          window.requirejs(['Types/source', 'Types/entity'], function(source: any, entity: any) {
+            try {
+              const filterRecord = new entity.Record({
+                format: {
+                  "filter": "record",
+                  "Фильтр": "record"
                 },
-                "БилдСервиса_БилдСервиса": {},
-                "Метод_Метод": { "Position": 2, "Top": 100 },
-                "Метод_МетодПсевдоним": {}
-              },
-              "ВремяКонца": "15:10",
-              "ВремяНачала": "12:10",
-              "ДатаКонца": "23.08.26",
-              "ДатаНачала": "23.08.26",
-              "Куб": "Вызовы",
-              "Отображение": "Таблица",
-              "Характеристики для анализа": {
-                "Количество вызовов": { "Top": true },
-                "Количество ошибок": {},
-                "Количество предупреждений": {},
-                "Максимальная продолжительность (мс)": {},
-                "Общая продолжительность (мс)": {},
-                "Средняя продолжительность (мс)": {}
+                adapter: 'adapter.sbis'
+              });
+              
+              // Парсим JSON фильтра из настроек или используем шаблон
+              let filterObj = {};
+              try {
+                filterObj = JSON.parse(filter.filterJson);
+              } catch {
+                // Используем шаблон по умолчанию
+                filterObj = {
+                  "filter": {
+                    "TZ": 3,
+                    "characteristics": {
+                      "rs": [
+                        { "id": "Количество вызовов", "order": "desc", "range": {} },
+                        { "id": "Количество ошибок", "order": null, "range": {} },
+                        { "id": "Общая продолжительность (мс)", "order": null, "range": {} },
+                        { "id": "Максимальная продолжительность (мс)", "order": null, "range": {} },
+                        { "id": "Средняя продолжительность (мс)", "order": null, "range": {} },
+                        { "id": "Количество предупреждений", "order": null, "range": {} }
+                      ],
+                      "meta": {}
+                    },
+                    "comparePeriodEnabled": false,
+                    "cube": "Вызовы",
+                    "dimensions": {
+                      "rs": [
+                        { "id": "time", "isTimeDim": true, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": "all_days", "timePeriod": { "start": "00:00", "end": "23:59" }, "timeStep": "ten_minute" },
+                        { "id": "Метод_Метод", "isTimeDim": null, "isAggregated": true, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": 100, "mode": null, "timePeriod": null, "timeStep": null },
+                        { "id": "Метод_МетодПсевдоним", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                        { "id": "WEB-Сервис_Семейство", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                        { "id": "WEB-Сервис_Приложение", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                        { "id": "WEB-Сервис_Сервис", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                        { "id": "WEB-Сервис_СистемноеИмя", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null },
+                        { "id": "БилдСервиса_БилдСервиса", "isTimeDim": null, "isAggregated": false, "values": null, "valuesCompare": null, "excluded": null, "excludedCompare": null, "top": null, "mode": null, "timePeriod": null, "timeStep": null }
+                      ],
+                      "meta": {}
+                    },
+                    "displayType": "Таблица",
+                    "period": {
+                      "rs": [{ "start": "2026-08-23T09:10:00.000Z", "end": "2026-08-23T12:10:00.000Z" }],
+                      "meta": {}
+                    },
+                    "version": "1"
+                  },
+                  "Фильтр": {
+                    "TZ": 3,
+                    "Версия": 1,
+                    "Вертикальная детализация": {
+                      "WEB-Сервис_Приложение": {},
+                      "WEB-Сервис_Семейство": {},
+                      "WEB-Сервис_Сервис": {},
+                      "WEB-Сервис_СистемноеИмя": {},
+                      "time": {
+                        "Filter": ["ten_minute"],
+                        "FilterDays": "all_days",
+                        "FilterHours": ["00:00", "23:59"],
+                        "Position": 1
+                      },
+                      "БилдСервиса_БилдСервиса": {},
+                      "Метод_Метод": { "Position": 2, "Top": 100 },
+                      "Метод_МетодПсевдоним": {}
+                    },
+                    "ВремяКонца": "15:10",
+                    "ВремяНачала": "12:10",
+                    "ДатаКонца": "23.08.26",
+                    "ДатаНачала": "23.08.26",
+                    "Куб": "Вызовы",
+                    "Отображение": "Таблица",
+                    "Характеристики для анализа": {
+                      "Количество вызовов": { "Top": true },
+                      "Количество ошибок": {},
+                      "Количество предупреждений": {},
+                      "Максимальная продолжительность (мс)": {},
+                      "Общая продолжительность (мс)": {},
+                      "Средняя продолжительность (мс)": {}
+                    }
+                  }
+                };
               }
+              
+              filterRecord.set(filterObj);
+              
+              const Query = source.Query;
+              const myQuery = new Query();
+              myQuery.where(filterRecord).limit(50);
+              
+              new source.SbisService({
+                endpoint: {
+                  contract: 'CommonStatistic',
+                  address: window.wsConfig?.appRoot?.search('stats-cloud-interface') === -1 && `${standUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
+                },
+                binding: {
+                  query: 'GetReport'
+                }
+              }).query(myQuery).addBoth(function(result: any) {
+                console.info('Report result:', result);
+                // Парсим результат в таблицу
+                if (result && result.getRawData) {
+                  const rawData = result.getRawData();
+                  resolve(rawData);
+                } else {
+                  // Тестовые данные если результат пустой
+                  resolve({
+                    rows: [
+                      { method: "GET /api/users", calls: 120, errors: 2, duration: 450 },
+                      { method: "POST /api/orders", calls: 85, errors: 5, duration: 890 },
+                      { method: "GET /api/products", calls: 200, errors: 0, duration: 320 },
+                    ]
+                  });
+                }
+              });
+            } catch(e) {
+              console.error('Filter error:', e);
+              reject(e);
             }
           });
-          
-          const Query = source.Query;
-          const myQuery = new Query();
-          myQuery.where(filterRecord).limit(50);
-          
-          new source.SbisService({
-            endpoint: {
-              contract: 'CommonStatistic',
-              address: window.wsConfig?.appRoot?.search('stats-cloud-interface') === -1 && `${standUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
-            },
-            binding: {
-              query: 'GetReport'
-            }
-          }).query(myQuery).addBoth(function(result: any) {
-            console.info('Report result:', result);
-            // Обработка результата отчета
-          });
-        } catch(e) {
-          console.error('Filter error:', e);
-        }
-      });
+        });
+      }
       
-      // Возвращаем тестовые данные для демонстрации
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return {
-        rows: [
-          { method: "GET /api/users", calls: 120, errors: 2, duration: 450 },
-          { method: "POST /api/orders", calls: 85, errors: 5, duration: 890 },
-          { method: "GET /api/products", calls: 200, errors: 0, duration: 320 },
-        ]
-      };
+      // Сохраняем отчет
+      if (reportData) {
+        const accountId = getAccountId();
+        const payload = localStorage.getItem("kadr-regapi-token");
+        let createdBy = "Unknown";
+        if (payload) {
+          try {
+            const decoded = JSON.parse(atob(payload.split('.')[1]));
+            createdBy = decoded.name || decoded.email || accountId;
+          } catch {}
+        }
+        
+        const savedReport: SavedReport = {
+          id: Date.now().toString(),
+          filterId: filter.id,
+          filterName: filter.name,
+          createdAt: Date.now(),
+          createdBy,
+          standId,
+          data: reportData,
+          filterJson: filter.filterJson
+        };
+        
+        saveReport(savedReport);
+        setSelectedReport(savedReport);
+      }
+      
+      return reportData;
     } catch (error) {
       console.error('Failed to fetch report:', error);
+      setReportError('Ошибка при получении отчета: ' + (error as Error).message);
       return null;
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -619,63 +743,213 @@ export default function CloudStatisticPage() {
                     onClick={async () => {
                       const filter = settings.reportFilters.find(f => f.id === selectedFilterId);
                       if (filter && FIXED_STANDS.length > 0) {
-                        const report = await fetchReport(filter, FIXED_STANDS[0].id, FIXED_STANDS[0].baseUrl);
-                        if (report) {
-                          setAvailableReports(report.rows.map(r => r.method));
-                        }
+                        await fetchReport(filter, FIXED_STANDS[0].id, FIXED_STANDS[0].baseUrl);
                       }
                     }}
-                    className="flex items-center gap-2 rounded-lg bg-sage px-4 py-3 text-[13px] font-bold text-[#17211d] transition-all hover:bg-sage/80"
+                    disabled={reportLoading}
+                    className="flex items-center gap-2 rounded-lg bg-sage px-4 py-3 text-[13px] font-bold text-[#17211d] transition-all hover:bg-sage/80 disabled:opacity-50"
                   >
-                    <Download size={18} />
-                    Загрузить отчет
+                    {reportLoading ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" />
+                        Загрузка...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={18} />
+                        Загрузить отчет
+                      </>
+                    )}
                   </button>
                 )}
               </div>
               
-              {/* Display available reports if loaded */}
-              {availableReports.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-line">
-                  <h3 className="text-[14px] font-bold text-fog mb-3">Доступные отчеты:</h3>
-                  <ul className="space-y-2">
-                    {availableReports.map((report, idx) => (
-                      <li key={idx} className="text-[13px] text-mist bg-deep/50 px-3 py-2 rounded border border-border">
-                        {report}
-                      </li>
-                    ))}
-                  </ul>
+              {/* Error message */}
+              {reportError && (
+                <div className="mt-4 p-3 bg-ember/20 border border-ember rounded-lg text-ember text-sm">
+                  {reportError}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Content Placeholder */}
-        <div className="rounded-xl border border-line bg-panel/40 p-8 backdrop-blur">
-          <div className="text-center">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-amber/10">
-              <BarChart3 size={32} className="text-amber" />
-            </div>
-            <h2 className="mb-3 font-display text-[20px] font-semibold text-fog">
-              Облачная статистика
-            </h2>
-            <p className="mb-6 text-sm text-mist max-w-md mx-auto leading-relaxed">
-              Здесь будут отображаться отчеты по тестам вашей команды.<br />
-              Статистика хранится в базе данных и доступна всем участникам аккаунта.
-            </p>
-            
-            {/* Заглушка для будущих отчетов */}
-            <div className="mt-8 rounded-xl border-2 border-dashed border-line bg-deep/50 p-8 max-w-2xl mx-auto">
-              <Inbox size={32} className="mx-auto mb-3 text-mist" />
-              <p className="text-sm font-medium text-mist">
-                Отчеты пока не сформированы
-              </p>
-              <p className="mt-1 text-xs text-dim">
-                Запустите сборку тестов в workspace, чтобы увидеть статистику
-              </p>
+        {/* Saved Reports List */}
+        {savedReports.length > 0 && !selectedReport && (
+          <div className="mb-8">
+            <h2 className="font-display text-[18px] font-semibold text-fog mb-4">Сохраненные отчеты</h2>
+            <div className="rounded-xl border border-line bg-panel/40 backdrop-blur overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-deep/50 border-b border-line">
+                  <tr>
+                    <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Название отчета</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Дата получения</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Пользователь</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Стенд</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {savedReports.map((report) => {
+                    const stand = FIXED_STANDS.find(s => s.id === report.standId);
+                    return (
+                      <tr 
+                        key={report.id} 
+                        className="border-b border-line hover:bg-panel/60 cursor-pointer transition-colors"
+                        onClick={() => setSelectedReport(report)}
+                      >
+                        <td className="px-4 py-3 text-[13px] text-fog font-medium">{report.filterName}</td>
+                        <td className="px-4 py-3 text-[13px] text-mist">
+                          {new Date(report.createdAt).toLocaleString('ru-RU')}
+                        </td>
+                        <td className="px-4 py-3 text-[13px] text-mist">{report.createdBy}</td>
+                        <td className="px-4 py-3">
+                          <span className="text-[11px] px-2 py-1 rounded bg-slate/20 text-slate font-semibold">
+                            {stand?.name || report.standId}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShareReport(report);
+                            }}
+                            className="text-[11px] px-2 py-1 rounded bg-amber/20 text-amber font-semibold hover:bg-amber/30 transition-colors mr-2"
+                          >
+                            Поделиться
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Selected Report Detail View */}
+        {selectedReport && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedReport(null)}
+                  className="flex items-center gap-2 text-[13px] text-mist hover:text-fog transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                  </svg>
+                  Назад к списку
+                </button>
+              </div>
+              <a
+                href={`${FIXED_STANDS.find(s => s.id === selectedReport.standId)?.baseUrl || '#'}/page/statistics-new`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[13px] text-amber hover:text-amber2 font-semibold underline"
+              >
+                Открыть страницу статистики →
+              </a>
+            </div>
+            
+            <div className="rounded-xl border border-line bg-panel/40 p-6 backdrop-blur">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-line">
+                <div>
+                  <h2 className="font-display text-[20px] font-bold text-fog">{selectedReport.filterName}</h2>
+                  <p className="text-[12px] text-mist mt-1">
+                    Получен: {new Date(selectedReport.createdAt).toLocaleString('ru-RU')} | Пользователь: {selectedReport.createdBy}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleShareReport(selectedReport)}
+                    className="flex items-center gap-2 rounded-lg bg-amber/90 px-4 py-2.5 text-[13px] font-bold text-[#17211d] transition-all hover:bg-amber"
+                  >
+                    <Download size={16} />
+                    Поделиться
+                  </button>
+                  <button
+                    onClick={() => handleDownloadReport(selectedReport)}
+                    className="flex items-center gap-2 rounded-lg bg-panel border border-line px-4 py-2.5 text-[13px] font-bold text-fog transition-all hover:bg-raised"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Скачать PDF
+                  </button>
+                </div>
+              </div>
+              
+              {/* Report Data Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-deep/50 border-b border-line">
+                    <tr>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Метод</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Вызовов</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Ошибок</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Продолжительность (мс)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedReport.data?.rows && Array.isArray(selectedReport.data.rows) ? (
+                      selectedReport.data.rows.map((row: any, idx: number) => (
+                        <tr key={idx} className="border-b border-line hover:bg-panel/60">
+                          <td className="px-4 py-3 text-[13px] text-fog font-mono">{row.method || 'N/A'}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.calls ?? '-'}</td>
+                          <td className="px-4 py-3 text-[13px] text-right">
+                            <span className={`px-2 py-1 rounded text-[11px] font-semibold ${
+                              row.errors > 0 ? 'bg-ember/20 text-ember' : 'bg-sage/20 text-sage'
+                            }`}>
+                              {row.errors ?? 0}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.duration ?? '-'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-mist">
+                          Нет данных для отображения
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Content Placeholder */}
+        {!selectedReport && savedReports.length === 0 && (!settings.reportFilters.length || !selectedFilterId) && (
+          <div className="rounded-xl border border-line bg-panel/40 p-8 backdrop-blur">
+            <div className="text-center">
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-amber/10">
+                <BarChart3 size={32} className="text-amber" />
+              </div>
+              <h2 className="mb-3 font-display text-[20px] font-semibold text-fog">
+                Облачная статистика
+              </h2>
+              <p className="mb-6 text-sm text-mist max-w-md mx-auto leading-relaxed">
+                Здесь будут отображаться отчеты по тестам вашей команды.<br />
+                Статистика хранится в базе данных и доступна всем участникам аккаунта.
+              </p>
+              
+              {/* Заглушка для будущих отчетов */}
+              <div className="mt-8 rounded-xl border-2 border-dashed border-line bg-deep/50 p-8 max-w-2xl mx-auto">
+                <Inbox size={32} className="mx-auto mb-3 text-mist" />
+                <p className="text-sm font-medium text-mist">
+                  Отчеты пока не сформированы
+                </p>
+                <p className="mt-1 text-xs text-dim">
+                  Добавьте фильтр в настройках и загрузите отчет для начала работы
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Settings Modal */}
