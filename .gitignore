@@ -2,12 +2,17 @@
 # Build artifacts
 dist/
 build/
-*.min.js
-*.min.css
-*.bundle.js
+*.css
+*.js
 
 # Dependencies
 node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
 # Environment
 .env
@@ -17,17 +22,26 @@ node_modules/
 # Editors
 .vscode/
 .idea/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.swp
+*.swo
 
 # Logs
 *.log
 
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Temp files
+*.tmp
+*.temp
+
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 ```
