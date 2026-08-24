@@ -2,39 +2,30 @@
 # Build artifacts
 dist/
 build/
-*.o
-*.obj
-*.out
+*.min.js
+*.min.css
+*.bundle.js
 
 # Dependencies
 node_modules/
-.venv/
-venv/
-__pycache__/
-*.egg-info/
-.Python/
-.pytest_cache/
-.mypy_cache/
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# Logs
-*.log
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
-# Coverage
-coverage/
-htmlcov/
-.coverage
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
 
 # OS
 .DS_Store
