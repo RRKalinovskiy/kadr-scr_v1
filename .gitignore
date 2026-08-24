@@ -11,33 +11,32 @@ node_modules/
 .venv/
 venv/
 __pycache__/
-.mypy_cache/
+*.egg-info/
+.Python/
 .pytest_cache/
-target/
-.gradle/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-*.env.*
+.mypy_cache/
 
 # Editors
 .vscode/
 .idea/
 *.swp
 *.swo
+*.tmp
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
 
 # Coverage
 coverage/
 htmlcov/
 .coverage
 
-# System files
+# OS
 .DS_Store
 Thumbs.db
 ```
