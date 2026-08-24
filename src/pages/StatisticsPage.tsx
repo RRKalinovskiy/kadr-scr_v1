@@ -491,11 +491,11 @@ export default function CloudStatisticPage() {
       if (!window.requirejs) {
         console.warn('requirejs not available, using mock report');
         await new Promise(resolve => setTimeout(resolve, 1000));
-        const standPrefix = standId.toUpperCase().replace('-STAND', '');
+        // Mock-данные без префикса стенда
         reportData = {
           rows: [
-            { name0: `${standPrefix}_CRMClients.LastDTActionDocSave`, calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 },
-            { name0: `${standPrefix}_CoreV3.Collecting`, calls: 3155, errors: 18, warnings: 6, maxDuration: 15603, sumDuration: 3989694, avgDuration: 1264.56 },
+            { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 },
+            { name0: 'CoreV3.Collecting', 'Количество вызовов': 3155, 'Количество ошибок': 18, 'Количество предупреждений': 6, 'Максимальная продолжительность (мс)': 15603, 'Общая продолжительность (мс)': 3989694, 'Средняя продолжительность (мс)': 1264.56 },
           ]
         };
       } else {
@@ -525,46 +525,51 @@ export default function CloudStatisticPage() {
                 let parsedData: any = { rows: [] };
                 
                 if (result) {
+                  // Получаем сырые данные
                   const rawData = result.getRawData ? result.getRawData() : (result.getData ? result.getData() : result);
                   
                   if (rawData && rawData.rs && Array.isArray(rawData.rs)) {
+                    // Парсим все записи из rs без фильтрации по dimension
                     parsedData.rows = rawData.rs.map((item: any) => ({
                       name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
                       id: item.id,
                       dimension: item.dimension,
                       label: item.label,
-                      calls: item['Количество вызовов'] || 0,
-                      errors: item['Количество ошибок'] || 0,
-                      warnings: item['Количество предупреждений'] || 0,
-                      maxDuration: item['Максимальная продолжительность (мс)'] || 0,
-                      sumDuration: item['Общая продолжительность (мс)'] || 0,
-                      avgDuration: item['Средняя продолжительность (мс)'] || 0
+                      // Сохраняем оригинальные поля с русскими названиями
+                      'Количество вызовов': item['Количество вызовов'] ?? 0,
+                      'Количество ошибок': item['Количество ошибок'] ?? 0,
+                      'Количество предупреждений': item['Количество предупреждений'] ?? 0,
+                      'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
+                      'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
+                      'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
                     }));
                   } else if (Array.isArray(rawData)) {
+                    // Если результат сразу массив
                     parsedData.rows = rawData.map((item: any) => ({
                       name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
                       id: item.id,
                       dimension: item.dimension,
                       label: item.label,
-                      calls: item['Количество вызовов'] || 0,
-                      errors: item['Количество ошибок'] || 0,
-                      warnings: item['Количество предупреждений'] || 0,
-                      maxDuration: item['Максимальная продолжительность (мс)'] || 0,
-                      sumDuration: item['Общая продолжительность (мс)'] || 0,
-                      avgDuration: item['Средняя продолжительность (мс)'] || 0
+                      'Количество вызовов': item['Количество вызовов'] ?? 0,
+                      'Количество ошибок': item['Количество ошибок'] ?? 0,
+                      'Количество предупреждений': item['Количество предупреждений'] ?? 0,
+                      'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
+                      'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
+                      'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
                     }));
                   } else if (rawData && rawData.rows) {
                     parsedData = rawData;
                   } else {
-                    const standPrefix = standId.toUpperCase().replace('-STAND', '');
+                    // Fallback mock-данные без префикса
                     parsedData.rows = [
-                      { name0: `${standPrefix}_CRMClients.LastDTActionDocSave`, calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 },
-                      { name0: `${standPrefix}_CoreV3.Collecting`, calls: 3155, errors: 18, warnings: 6, maxDuration: 15603, sumDuration: 3989694, avgDuration: 1264.56 }
+                      { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 },
+                      { name0: 'CoreV3.Collecting', 'Количество вызовов': 3155, 'Количество ошибок': 18, 'Количество предупреждений': 6, 'Максимальная продолжительность (мс)': 15603, 'Общая продолжительность (мс)': 3989694, 'Средняя продолжительность (мс)': 1264.56 }
                     ];
                   }
                 } else {
-                  const standPrefix = standId.toUpperCase().replace('-STAND', '');
-                  parsedData.rows = [{ name0: `${standPrefix}_CRMClients.LastDTActionDocSave`, calls: 709399, errors: 48, warnings: 1602, maxDuration: 2805, sumDuration: 9221075, avgDuration: 13 }];
+                  parsedData.rows = [
+                    { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 }
+                  ];
                 }
                 
                 resolve(parsedData);
@@ -1161,18 +1166,18 @@ export default function CloudStatisticPage() {
                           <td className="px-4 py-3 text-[13px] text-fog font-mono">
                             <div className="font-semibold">{row.name0 || 'N/A'}</div>
                           </td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right font-semibold">{row.calls ?? 0}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right font-semibold">{row['Количество вызовов'] ?? 0}</td>
                           <td className="px-4 py-3 text-[13px] text-right">
                             <span className={`px-2 py-1 rounded text-[11px] font-semibold ${
-                              (row.errors ?? 0) > 0 ? 'bg-ember/20 text-ember' : 'bg-sage/20 text-sage'
+                              (row['Количество ошибок'] ?? 0) > 0 ? 'bg-ember/20 text-ember' : 'bg-sage/20 text-sage'
                             }`}>
-                              {row.errors ?? 0}
+                              {row['Количество ошибок'] ?? 0}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-[13px] text-mist text-right">{row.warnings ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.maxDuration ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.sumDuration ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.avgDuration ?? 0}</td>
+                          <td className="px-4 py-3 text-[13px] text-mist text-right">{row['Количество предупреждений'] ?? 0}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row['Максимальная продолжительность (мс)'] ?? 0}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row['Общая продолжительность (мс)'] ?? 0}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row['Средняя продолжительность (мс)'] ?? 0}</td>
                         </tr>
                       ));
                     })()}
