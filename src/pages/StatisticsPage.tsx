@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Header } from '../components/Header';
 import { backend } from "../backend";
 import type { PublicUser } from "../backend";
-import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download } from "lucide-react";
+import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download, Plus } from "lucide-react";
 import { loadStateFor, saveStateFor, type PersistedState } from "../data";
 
 interface ReportFilter {
