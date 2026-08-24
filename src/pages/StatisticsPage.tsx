@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Header } from '../components/Header';
 import { backend } from "../backend";
 import type { PublicUser } from "../backend";
-import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download, Plus } from "lucide-react";
+import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download, Plus, Eye, EyeOff } from "lucide-react";
 import { loadStateFor, saveStateFor, type PersistedState } from "../data";
 
 interface ReportFilter {
@@ -44,6 +44,7 @@ interface StandState {
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
   cookies?: string;
   lastSync?: number;
+  errorMessage?: string;
 }
 
 declare global {
@@ -68,6 +69,7 @@ export default function CloudStatisticPage() {
   const [standCredentials, setStandCredentials] = useState<Record<string, StandCredentials>>({});
   const [standStates, setStandStates] = useState<Record<string, StandState>>({});
   const [authenticating, setAuthenticating] = useState<string | null>(null);
+  const [passwordVisible, setPasswordVisible] = useState<Record<string, boolean>>({});
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Settings state
@@ -114,6 +116,13 @@ export default function CloudStatisticPage() {
     setStandStates(prev => ({
       ...prev,
       [standId]: { ...getStandState(standId), ...updates }
+    }));
+  };
+
+  const togglePasswordVisibility = (standId: string) => {
+    setPasswordVisible(prev => ({
+      ...prev,
+      [standId]: !prev[standId]
     }));
   };
 
@@ -309,10 +318,27 @@ export default function CloudStatisticPage() {
           authData
         ).addBoth(function(result: any) {
           console.info('Authentication result:', result);
+          
+          // Проверяем наличие ошибки в ответе
+          if (result && result.message && result.message.includes("Проверьте правильность ввода логина и пароля")) {
+            updateStandState(standId, { 
+              syncStatus: 'error', 
+              errorMessage: result.message,
+              cookies: undefined 
+            });
+            
+            // Сохраняем в localStorage
+            const accountId = getAccountId();
+            localStorage.setItem(`stats-states-${accountId}`, JSON.stringify(standStates));
+            
+            setAuthenticating(null);
+            return;
+          }
+          
           // Извлекаем cookie из результата
           const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
           
-          updateStandState(standId, { cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' });
+          updateStandState(standId, { cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success', errorMessage: undefined });
           
           // Сохраняем в localStorage
           const accountId = getAccountId();
@@ -814,9 +840,16 @@ export default function CloudStatisticPage() {
                       </span>
                     )}
                     {state.syncStatus === 'error' && (
-                      <span className="text-[10px] px-2 py-1 rounded bg-ember/20 text-ember font-semibold">
-                        Ошибка
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] px-2 py-1 rounded bg-ember/20 text-ember font-semibold">
+                          Ошибка
+                        </span>
+                        {state.errorMessage && (
+                          <span className="text-[10px] text-ember break-all">
+                            {state.errorMessage}
+                          </span>
+                        )}
+                      </div>
                     )}
                     {!state.syncStatus || state.syncStatus === 'idle' && (
                       <span className="text-[10px] px-2 py-1 rounded bg-slate/20 text-slate font-semibold">
@@ -843,13 +876,22 @@ export default function CloudStatisticPage() {
                       onChange={(e) => updateStandCredentials(stand.id, 'login', e.target.value)}
                       className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
                     />
-                    <input
-                      type="password"
-                      placeholder="Пароль"
-                      value={getStandCredentials(stand.id).password}
-                      onChange={(e) => updateStandCredentials(stand.id, 'password', e.target.value)}
-                      className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
-                    />
+                    <div className="relative">
+                      <input
+                        type={passwordVisible[stand.id] ? "text" : "password"}
+                        placeholder="Пароль"
+                        value={getStandCredentials(stand.id).password}
+                        onChange={(e) => updateStandCredentials(stand.id, 'password', e.target.value)}
+                        className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => togglePasswordVisibility(stand.id)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-mist/50 hover:text-fog transition-colors"
+                      >
+                        {passwordVisible[stand.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
                   </div>
                   
                   <button
