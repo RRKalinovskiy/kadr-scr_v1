@@ -463,69 +463,53 @@ export default function CloudStatisticPage() {
                 let parsedData: any = { rows: [] };
                 
                 if (result) {
-                  // Пробуем получить сырые данные
+                  // Пробуем получить сырые данные через getRawData
                   const rawData = result.getRawData ? result.getRawData() : result;
                   
-                  // Если есть массив rs (result set)
+                  // Если есть массив rs (result set) - это основной случай
                   if (rawData && rawData.rs && Array.isArray(rawData.rs)) {
                     parsedData.rows = rawData.rs.map((item: any) => ({
-                      id: item.id || '',
-                      dimension: item.dimension || '',
-                      name: item.name0 || item.label || item.id || '',
-                      responsible: item['ОтветственныйЗаМетод']?.[0] || '',
-                      label: item.label || `${item.name0 || ''} (${item['ОтветственныйЗаМетод']?.[0] || ''})`,
+                      method: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
                       calls: item['Количество вызовов'] || 0,
                       errors: item['Количество ошибок'] || 0,
                       warnings: item['Количество предупреждений'] || 0,
                       maxDuration: item['Максимальная продолжительность (мс)'] || 0,
-                      totalDuration: item['Общая продолжительность (мс)'] || 0,
+                      sumDuration: item['Общая продолжительность (мс)'] || 0,
                       avgDuration: item['Средняя продолжительность (мс)'] || 0
                     }));
                   } else if (Array.isArray(rawData)) {
                     // Если результат сразу массив
                     parsedData.rows = rawData.map((item: any) => ({
-                      id: item.id || '',
-                      dimension: item.dimension || '',
-                      name: item.name0 || item.label || item.id || '',
-                      responsible: item['ОтветственныйЗаМетод']?.[0] || '',
-                      label: item.label || `${item.name0 || ''} (${item['ОтветственныйЗаМетод']?.[0] || ''})`,
+                      method: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
                       calls: item['Количество вызовов'] || 0,
                       errors: item['Количество ошибок'] || 0,
                       warnings: item['Количество предупреждений'] || 0,
                       maxDuration: item['Максимальная продолжительность (мс)'] || 0,
-                      totalDuration: item['Общая продолжительность (мс)'] || 0,
+                      sumDuration: item['Общая продолжительность (мс)'] || 0,
                       avgDuration: item['Средняя продолжительность (мс)'] || 0
                     }));
                   } else if (rawData && rawData.rows) {
                     // Если уже есть структура rows
                     parsedData = rawData;
                   } else {
-                    // Тестовые данные если результат пустой
+                    // Тестовые данные если результат пустой или неправильной структуры
                     parsedData.rows = [
                       { 
-                        id: "CRMClients.LastDTActionDocSave$$Гаврилов М.В.",
-                        dimension: "Метод_Метод",
-                        name: "CRMClients.LastDTActionDocSave",
-                        responsible: "Гаврилов М.В.",
-                        label: "CRMClients.LastDTActionDocSave (Гаврилов М.В.)",
+                        method: "CRMClients.LastDTActionDocSave",
                         calls: 709399, 
                         errors: 48, 
                         warnings: 1602,
                         maxDuration: 2805,
-                        totalDuration: 9221075,
+                        sumDuration: 9221075,
                         avgDuration: 13
                       },
                       { 
-                        id: "CoreV3.Collecting$$Панов М.В.",
-                        dimension: "Метод_Метод",
-                        name: "CoreV3.Collecting",
-                        responsible: "Панов М.В.",
-                        label: "CoreV3.Collecting (Панов М.В.)",
+                        method: "CoreV3.Collecting",
                         calls: 3155, 
                         errors: 18, 
                         warnings: 6,
                         maxDuration: 15603,
-                        totalDuration: 3989694,
+                        sumDuration: 3989694,
                         avgDuration: 1264.56
                       }
                     ];
@@ -534,16 +518,12 @@ export default function CloudStatisticPage() {
                   // Тестовые данные если результат null
                   parsedData.rows = [
                     { 
-                      id: "CRMClients.LastDTActionDocSave$$Гаврилов М.В.",
-                      dimension: "Метод_Метод",
-                      name: "CRMClients.LastDTActionDocSave",
-                      responsible: "Гаврилов М.В.",
-                      label: "CRMClients.LastDTActionDocSave (Гаврилов М.В.)",
+                      method: "CRMClients.LastDTActionDocSave",
                       calls: 709399, 
                       errors: 48, 
                       warnings: 1602,
                       maxDuration: 2805,
-                      totalDuration: 9221075,
+                      sumDuration: 9221075,
                       avgDuration: 13
                     }
                   ];
@@ -965,13 +945,12 @@ export default function CloudStatisticPage() {
                   <thead className="bg-deep/50 border-b border-line">
                     <tr>
                       <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Метод</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Ответственный</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Вызовов</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Ошибок</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Предупреждений</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Средняя (мс)</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Макс (мс)</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Общая (мс)</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Количество вызовов</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Количество ошибок</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Количество предупреждений</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Max (мс)</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Sum (мс)</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Ave (мс)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -979,10 +958,8 @@ export default function CloudStatisticPage() {
                       selectedReport.data.rows.map((row: any, idx: number) => (
                         <tr key={idx} className="border-b border-line hover:bg-panel/60">
                           <td className="px-4 py-3 text-[13px] text-fog font-mono">
-                            <div className="font-semibold">{row.name || row.label || 'N/A'}</div>
-                            {row.id && <div className="text-[10px] text-mist truncate max-w-xs">{row.id}</div>}
+                            <div className="font-semibold">{row.method || 'N/A'}</div>
                           </td>
-                          <td className="px-4 py-3 text-[13px] text-fog">{row.responsible || '-'}</td>
                           <td className="px-4 py-3 text-[13px] text-fog text-right font-semibold">{row.calls ?? 0}</td>
                           <td className="px-4 py-3 text-[13px] text-right">
                             <span className={`px-2 py-1 rounded text-[11px] font-semibold ${
@@ -992,14 +969,14 @@ export default function CloudStatisticPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-[13px] text-mist text-right">{row.warnings ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.avgDuration ?? '-'}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.maxDuration ?? '-'}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.totalDuration ?? '-'}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.maxDuration ?? 0}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.sumDuration ?? 0}</td>
+                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row.avgDuration ?? 0}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-mist">
+                        <td colSpan={7} className="px-4 py-8 text-center text-mist">
                           Нет данных для отображения
                         </td>
                       </tr>
