@@ -13,6 +13,7 @@ import {
   fetchStandReport,
   formatCell,
   loadStandCredentials,
+  saveStandCredentials,
   type ReportFilter,
   type ReportTableData,
 } from "../statsCloud";
@@ -56,9 +57,9 @@ declare global {
 }
 
 const FIXED_STANDS = [
-  { id: "fix-stand", name: "fix", baseUrl: "https://fix-online.sbis.ru", color: "#ffb454" },
-  { id: "test-stand", name: "test", baseUrl: "https://test-online.sbis.ru", color: "#4fe0c4" },
-  { id: "pre-test-stand", name: "pre-test", baseUrl: "https://pre-test-online.sbis.ru", color: "#7fb7ff" },
+  { id: "fix-stand", name: "fix", baseUrl: "https://fix-cloud.sbis.ru", color: "#ffb454" },
+  { id: "test-stand", name: "test", baseUrl: "https://test-cloud.sbis.ru", color: "#4fe0c4" },
+  { id: "pre-test-stand", name: "pre-test", baseUrl: "https://pre-test-cloud.sbis.ru", color: "#7fb7ff" },
 ];
 
 export default function CloudStatisticPage() {
@@ -92,12 +93,36 @@ export default function CloudStatisticPage() {
   const getAccountId = (): string => user?.accountId ?? "default";
 
   const getStandCredentials = (standId: string): StandCredentials => standCredentials[standId] || { login: "", password: "" };
+
+  const persistCredentialsLocal = (accountId: string, next: Record<string, StandCredentials>) => {
+    try {
+      localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify(next));
+    } catch { /* ignore */ }
+  };
+
+  const persistCredentialsToAccount = (
+    standId: string,
+    standUrl: string,
+    creds: StandCredentials,
+  ) => {
+    if (!creds.login.trim() && !creds.password.trim()) return;
+    void saveStandCredentials(standId, standUrl, creds.login, creds.password).catch((e) => {
+      console.error("Failed to save stand credentials:", e);
+    });
+  };
   
   const updateStandCredentials = (standId: string, field: 'login' | 'password', value: string) => {
-    setStandCredentials(prev => ({
-      ...prev,
-      [standId]: { ...getStandCredentials(standId), [field]: value }
-    }));
+    setStandCredentials((prev) => {
+      const next = {
+        ...prev,
+        [standId]: { ...(prev[standId] || { login: "", password: "" }), [field]: value },
+      };
+      const accountId = getAccountId();
+      if (accountId !== "default") {
+        persistCredentialsLocal(accountId, next);
+      }
+      return next;
+    });
   };
 
   const getStandState = (standId: string): StandState => standStates[standId] || { syncStatus: 'idle' };
@@ -229,31 +254,40 @@ export default function CloudStatisticPage() {
           setSelectedFilterId(loadedSettings.defaultFilterId);
         }
 
+        let localCreds: Record<string, StandCredentials> = {};
         try {
           const savedCredentials = localStorage.getItem(`stats-credentials-${accountId}`);
-          if (savedCredentials) setStandCredentials(JSON.parse(savedCredentials));
+          if (savedCredentials) {
+            localCreds = JSON.parse(savedCredentials) as Record<string, StandCredentials>;
+          }
           const savedReportsRaw = localStorage.getItem(`stats-reports-${accountId}`);
           if (savedReportsRaw) setSavedReports(JSON.parse(savedReportsRaw) as SavedReport[]);
         } catch (e) {
           console.error('Failed to load stand data:', e);
         }
 
-        // Учётные данные и сессии стендов с аккаунта (БД)
+        // Учётные данные с аккаунта (БД) — источник истины; localStorage только запасной
         const fromDb = await loadStandCredentials();
         const nextCreds: Record<string, StandCredentials> = {};
         const nextStates: Record<string, StandState> = {};
+        const accountLogin = fromDb.accountCredentials.login;
+        const accountPassword = fromDb.accountCredentials.password;
+
         for (const stand of FIXED_STANDS) {
-          const row = fromDb[stand.id];
+          const row = fromDb.stands[stand.id];
+          const local = localCreds[stand.id];
+          const login = row?.login || accountLogin || local?.login || '';
+          const password = row?.password || accountPassword || local?.password || '';
+          if (login || password) {
+            nextCreds[stand.id] = { login, password };
+          }
           if (row) {
-            if (row.login || row.password) {
-              nextCreds[stand.id] = { login: row.login, password: row.password };
-            }
             nextStates[stand.id] = row.hasSession
               ? { syncStatus: 'success', cookies: 'db' }
               : { syncStatus: 'idle' };
           } else {
             const one = await checkStandSession(stand.id);
-            if (one.login || one.password) {
+            if ((one.login || one.password) && !nextCreds[stand.id]) {
               nextCreds[stand.id] = { login: one.login || '', password: one.password || '' };
             }
             nextStates[stand.id] = one.hasSession
@@ -261,13 +295,8 @@ export default function CloudStatisticPage() {
               : { syncStatus: 'idle' };
           }
         }
-        if (Object.keys(nextCreds).length) {
-          setStandCredentials((prev) => ({ ...prev, ...nextCreds }));
-          localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify({
-            ...JSON.parse(localStorage.getItem(`stats-credentials-${accountId}`) || '{}'),
-            ...nextCreds,
-          }));
-        }
+        setStandCredentials(nextCreds);
+        persistCredentialsLocal(accountId, nextCreds);
         setStandStates(nextStates);
 
         setLoading(false);
@@ -283,8 +312,38 @@ export default function CloudStatisticPage() {
   const authenticateToStand = async (standId: string, standUrl: string, loginValue: string, passwordValue: string) => {
     setAuthenticating(standId);
     updateStandState(standId, { syncStatus: 'syncing', errorMessage: undefined });
+    const prev = getStandCredentials(standId);
+    const login = loginValue.trim() || prev.login;
+    const password = passwordValue || prev.password;
+
+    // Сразу на аккаунт (сервер тоже сохранит до Authenticate)
+    if (login || password) {
+      try {
+        await saveStandCredentials(standId, standUrl, login, password);
+      } catch (e) {
+        console.error('Failed to persist credentials before auth:', e);
+      }
+    }
+
     try {
-      const res = await authenticateStand(standId, standUrl, loginValue, passwordValue);
+      const res = await authenticateStand(standId, standUrl, login, password);
+      const storedLogin = res.login || login;
+      setStandCredentials((p) => {
+        const next = { ...p };
+        next[standId] = {
+          login: storedLogin,
+          password: password || p[standId]?.password || '',
+        };
+        for (const stand of FIXED_STANDS) {
+          if (stand.id === standId) continue;
+          const cur = next[stand.id];
+          if (!cur?.login && !cur?.password) {
+            next[stand.id] = { login: storedLogin, password: password || '' };
+          }
+        }
+        persistCredentialsLocal(getAccountId(), next);
+        return next;
+      });
       updateStandState(standId, {
         cookies: res.cookiePreview || 'db',
         lastSync: Date.now(),
@@ -292,13 +351,16 @@ export default function CloudStatisticPage() {
         errorMessage: undefined,
       });
       setCredsOpen((p) => ({ ...p, [standId]: false }));
-      const accountId = getAccountId();
-      localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify({
-        ...standCredentials,
-        [standId]: { login: loginValue, password: passwordValue },
-      }));
     } catch (error) {
       console.error('Authentication failed:', error);
+      setStandCredentials((p) => {
+        const next = {
+          ...p,
+          [standId]: { login, password: password || p[standId]?.password || '' },
+        };
+        persistCredentialsLocal(getAccountId(), next);
+        return next;
+      });
       updateStandState(standId, {
         syncStatus: 'error',
         cookies: undefined,
@@ -687,6 +749,14 @@ export default function CloudStatisticPage() {
                         placeholder="Логин"
                         value={creds.login}
                         onChange={(e) => updateStandCredentials(stand.id, "login", e.target.value)}
+                        onBlur={(e) => {
+                          const login = e.target.value;
+                          setStandCredentials((prev) => {
+                            const password = prev[stand.id]?.password || "";
+                            persistCredentialsToAccount(stand.id, stand.baseUrl, { login, password });
+                            return prev;
+                          });
+                        }}
                         className="w-full px-2.5 py-1.5 bg-deep border border-line rounded-lg text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
                       />
                       <div className="relative">
@@ -695,6 +765,14 @@ export default function CloudStatisticPage() {
                           placeholder="Пароль"
                           value={creds.password}
                           onChange={(e) => updateStandCredentials(stand.id, "password", e.target.value)}
+                          onBlur={(e) => {
+                            const password = e.target.value;
+                            setStandCredentials((prev) => {
+                              const login = prev[stand.id]?.login || "";
+                              persistCredentialsToAccount(stand.id, stand.baseUrl, { login, password });
+                              return prev;
+                            });
+                          }}
                           className="w-full px-2.5 py-1.5 bg-deep border border-line rounded-lg text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber pr-9"
                         />
                         <button
