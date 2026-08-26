@@ -330,7 +330,23 @@ export async function authenticateStand(
   login: string,
   password: string,
 ): Promise<{ cookiePreview?: string; login?: string }> {
-  return apiPost("stand_auth.php", { standId, standUrl, login, password });
+  return apiPost("stand_auth.php", { standId, standUrl, login, password, action: "auth" });
+}
+
+/** Сохранить логин/пароль стенда на аккаунт КАДР (без вызова SAP.Authenticate). */
+export async function saveStandCredentials(
+  standId: string,
+  standUrl: string,
+  login: string,
+  password: string,
+): Promise<{ login?: string; password?: string }> {
+  return apiPost("stand_auth.php", {
+    action: "save",
+    standId,
+    standUrl,
+    login,
+    password,
+  });
 }
 
 export async function checkStandSession(standId: string): Promise<{
@@ -352,24 +368,32 @@ export async function checkStandSession(standId: string): Promise<{
   }
 }
 
-export async function loadStandCredentials(): Promise<
-  Record<string, { login: string; password: string; hasSession: boolean }>
-> {
+export async function loadStandCredentials(): Promise<{
+  stands: Record<string, { login: string; password: string; hasSession: boolean }>;
+  accountCredentials: { login: string; password: string };
+}> {
   try {
     const d = await apiGet<{
       stands?: Record<string, { login?: string; password?: string; hasSession?: boolean }>;
+      accountCredentials?: { login?: string; password?: string };
     }>("stand_auth.php");
-    const out: Record<string, { login: string; password: string; hasSession: boolean }> = {};
+    const stands: Record<string, { login: string; password: string; hasSession: boolean }> = {};
     for (const [id, row] of Object.entries(d.stands ?? {})) {
-      out[id] = {
+      stands[id] = {
         login: row.login || "",
         password: row.password || "",
         hasSession: Boolean(row.hasSession),
       };
     }
-    return out;
+    return {
+      stands,
+      accountCredentials: {
+        login: d.accountCredentials?.login || "",
+        password: d.accountCredentials?.password || "",
+      },
+    };
   } catch {
-    return {};
+    return { stands: {}, accountCredentials: { login: "", password: "" } };
   }
 }
 

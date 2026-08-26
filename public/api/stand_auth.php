@@ -17,11 +17,23 @@ $accountId = (string) $s['account_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $standId = (string) ($_GET['standId'] ?? '');
+    $defaults = kadr_load_stand_row($accountId, kadr_account_creds_stand_id());
+    $defaultLogin = $defaults ? trim((string) ($defaults['login'] ?? '')) : '';
+    $defaultPassword = ($defaults && !empty($defaults['password_enc']))
+        ? kadr_decrypt_secret((string) $defaults['password_enc'])
+        : '';
+
     if ($standId !== '') {
         $row = kadr_load_stand_row($accountId, $standId);
         $cookies = $row['cookies'] ?? '';
-        $login = (string) ($row['login'] ?? '');
+        $login = trim((string) ($row['login'] ?? ''));
         $password = !empty($row['password_enc']) ? kadr_decrypt_secret((string) $row['password_enc']) : '';
+        if ($login === '') {
+            $login = $defaultLogin;
+        }
+        if ($password === '') {
+            $password = $defaultPassword;
+        }
         kadr_json([
             'ok'           => true,
             'hasSession'   => $cookies !== '',
@@ -35,18 +47,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $stands = [];
     foreach (kadr_list_stand_rows($accountId) as $row) {
-        $stands[(string) $row['stand_id']] = [
+        $id = (string) $row['stand_id'];
+        if ($id === kadr_account_creds_stand_id()) {
+            continue;
+        }
+        $login = trim((string) ($row['login'] ?? ''));
+        $password = !empty($row['password_enc']) ? kadr_decrypt_secret((string) $row['password_enc']) : '';
+        if ($login === '') {
+            $login = $defaultLogin;
+        }
+        if ($password === '') {
+            $password = $defaultPassword;
+        }
+        $stands[$id] = [
             'hasSession' => !empty($row['cookies']),
-            'login'      => (string) ($row['login'] ?? ''),
-            'password'   => !empty($row['password_enc']) ? kadr_decrypt_secret((string) $row['password_enc']) : '',
+            'login'      => $login,
+            'password'   => $password,
             'standUrl'   => (string) ($row['stand_url'] ?? ''),
             'updatedAt'  => (int) ($row['updated_at'] ?? 0),
         ];
     }
-    kadr_json(['ok' => true, 'stands' => $stands]);
+    // Если по стендам ещё нет строк, но есть общие credentials — отдаём их клиенту
+    kadr_json([
+        'ok' => true,
+        'stands' => $stands,
+        'accountCredentials' => [
+            'login'    => $defaultLogin,
+            'password' => $defaultPassword,
+        ],
+    ]);
 }
 
 $b        = kadr_body();
+$action   = trim((string) ($b['action'] ?? 'auth'));
 $standId  = trim((string) ($b['standId'] ?? ''));
 $standUrl = rtrim(trim((string) ($b['standUrl'] ?? '')), '/');
 $login    = trim((string) ($b['login'] ?? ''));
@@ -57,14 +90,53 @@ if ($standId === '') {
 }
 
 $saved = kadr_load_stand_row($accountId, $standId);
+$accountDefaults = kadr_load_stand_row($accountId, kadr_account_creds_stand_id());
+
+// Подставляем сохранённые на аккаунте (стенд → общие credentials аккаунта)
 if ($login === '' && $saved) {
     $login = trim((string) ($saved['login'] ?? ''));
+}
+if ($login === '' && $accountDefaults) {
+    $login = trim((string) ($accountDefaults['login'] ?? ''));
 }
 if ($password === '' && $saved && !empty($saved['password_enc'])) {
     $password = kadr_decrypt_secret((string) $saved['password_enc']);
 }
+if ($password === '' && $accountDefaults && !empty($accountDefaults['password_enc'])) {
+    $password = kadr_decrypt_secret((string) $accountDefaults['password_enc']);
+}
 if ($standUrl === '' && $saved) {
     $standUrl = rtrim((string) ($saved['stand_url'] ?? ''), '/');
+}
+
+// Только сохранить логин/пароль на аккаунт (без SAP.Authenticate)
+if ($action === 'save' || $action === 'saveCredentials') {
+    if ($login === '' && $password === '' && $standUrl === '') {
+        kadr_json(['ok' => false, 'error' => 'Нечего сохранять'], 400);
+    }
+    if ($standUrl !== '' && !preg_match('#^https://#i', $standUrl)) {
+        kadr_json(['ok' => false, 'error' => 'Допустим только https URL стенда'], 400);
+    }
+    kadr_save_stand_credentials($accountId, $standId, $standUrl, $login, $password);
+    // Общие credentials аккаунта — чтобы все стенды подхватывали один логин/пароль
+    if ($login !== '' || $password !== '') {
+        kadr_save_stand_credentials(
+            $accountId,
+            kadr_account_creds_stand_id(),
+            '',
+            $login !== '' ? $login : trim((string) ($accountDefaults['login'] ?? '')),
+            $password
+        );
+    }
+    $row = kadr_load_stand_row($accountId, $standId);
+    $pwd = ($row && !empty($row['password_enc'])) ? kadr_decrypt_secret((string) $row['password_enc']) : '';
+    kadr_json([
+        'ok'       => true,
+        'saved'    => true,
+        'login'    => (string) ($row['login'] ?? $login),
+        'password' => $pwd,
+        'hasSession' => $row && !empty($row['cookies']),
+    ]);
 }
 
 if ($standUrl === '' || $login === '' || $password === '') {
@@ -73,6 +145,10 @@ if ($standUrl === '' || $login === '' || $password === '') {
 if (!preg_match('#^https://#i', $standUrl)) {
     kadr_json(['ok' => false, 'error' => 'Допустим только https URL стенда'], 400);
 }
+
+// Сразу пишем credentials на аккаунт — даже если Authenticate ниже упадёт
+kadr_save_stand_credentials($accountId, $standId, $standUrl, $login, $password);
+kadr_save_stand_credentials($accountId, kadr_account_creds_stand_id(), '', $login, $password);
 
 $finger = [
     'Language'          => 'ru-RU',

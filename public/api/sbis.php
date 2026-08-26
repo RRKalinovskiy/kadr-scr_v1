@@ -445,6 +445,24 @@ function kadr_list_stand_rows(string $accountId): array
     return $stmt->fetchAll() ?: [];
 }
 
+function kadr_account_creds_stand_id(): string
+{
+    return '__account__';
+}
+
+/** Сохраняет login/password на аккаунт, не затирая cookie-сессию стенда. */
+function kadr_save_stand_credentials(
+    string $accountId,
+    string $standId,
+    string $standUrl,
+    string $login,
+    string $password
+): void {
+    $existing = kadr_load_stand_row($accountId, $standId);
+    $cookies = $existing ? (string) ($existing['cookies'] ?? '') : '';
+    kadr_save_stand_session($accountId, $standId, $standUrl, $cookies, $login, $password);
+}
+
 function kadr_save_stand_session(
     string $accountId,
     string $standId,
