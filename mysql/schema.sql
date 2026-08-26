@@ -40,6 +40,15 @@ CREATE TABLE IF NOT EXISTS kadr_account_state (
   updated_at BIGINT      NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Cookie-сессии стендов СБИС (после SAP.Authenticate), для GetReport
+CREATE TABLE IF NOT EXISTS kadr_stand_sessions (
+  account_id VARCHAR(64) NOT NULL,
+  stand_id   VARCHAR(64) NOT NULL,
+  cookies    TEXT        NOT NULL,
+  updated_at BIGINT      NOT NULL,
+  PRIMARY KEY (account_id, stand_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- ТАБЛИЦА КОМАНДНЫХ ТЕСТОВ
 -- Хранит тесты, доступные всей команде (не привязаны к конкретной коллекции)

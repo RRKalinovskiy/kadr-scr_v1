@@ -38,7 +38,6 @@ export default function LoginPage() {
         : await backend.login(email, password);
 
       if (res.ok) {
-        // Сохраняем пользователя в localStorage для восстановления сессии
         localStorage.setItem("kadr_user", JSON.stringify(res.user));
         navigate("/workspace");
       } else {

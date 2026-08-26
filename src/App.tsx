@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./components/LoginPage";
 import WorkspacePage from "./pages/WorkspacePage";
-import CloudStatisticPage from "./pages/CloudStatisticPage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
 import TeamPage from "./pages/TeamPage";

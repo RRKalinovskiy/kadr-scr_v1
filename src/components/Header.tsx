@@ -1,74 +1,83 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { ChevronDown } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { ChevronDown } from "lucide-react";
+import { initials } from "../types";
+import { restoreAuth, signOut } from "../session";
+import type { PublicUser } from "../backend";
+
+type StatusId = "online" | "busy" | "away" | "offline";
+
+const STATUSES: Array<{ id: StatusId; label: string; color: string }> = [
+  { id: "online", label: "В сети", color: "bg-sage" },
+  { id: "busy", label: "Занят", color: "bg-ember" },
+  { id: "away", label: "Отошёл", color: "bg-amber" },
+  { id: "offline", label: "Не беспокоить", color: "bg-mist" },
+];
+
+function loadStatus(): StatusId {
+  const v = localStorage.getItem("kadr-user-status");
+  return v === "busy" || v === "away" || v === "offline" ? v : "online";
+}
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, updateStatus } = useAuthStore();
-  
+  const [user, setUser] = useState<PublicUser | null>(null);
+  const [status, setStatus] = useState<StatusId>(loadStatus);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
 
-  const statuses = [
-    { id: 'online', label: 'В сети', color: 'bg-sage' },
-    { id: 'busy', label: 'Занят', color: 'bg-ember' },
-    { id: 'away', label: 'Отошел', color: 'bg-amber' },
-    { id: 'offline', label: 'Не беспокоить', color: 'bg-mist' },
-  ];
+  useEffect(() => {
+    void restoreAuth().then((auth) => {
+      if (auth?.user) setUser(auth.user);
+    });
+  }, []);
 
-  const currentStatus = statuses.find(s => s.id === user?.status) || statuses[0];
+  useEffect(() => {
+    localStorage.setItem("kadr-user-status", status);
+  }, [status]);
 
-  const handleNavClick = (path: string) => {
-    navigate(path);
-  };
+  const currentStatus = STATUSES.find((s) => s.id === status) || STATUSES[0];
+  const displayName = user?.name || "Пользователь";
+  const displayEmail = user?.email || "";
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const handleStatusChange = (statusId: string) => {
-    updateStatus(statusId);
-    setIsStatusModalOpen(false);
+  const handleLogout = async () => {
     setIsProfileOpen(false);
+    await signOut();
+    navigate("/auth");
   };
 
   const isActive = (path: string) => location.pathname === path;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-panel/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-[1920px] items-center justify-between px-6">
-        
-        <div className="flex items-center gap-8">
-          {/* Logo */}
-          <div 
-            className="flex items-center gap-3 cursor-pointer" 
-            onClick={() => handleNavClick('/workspace')}
+      <div className="mx-auto flex h-14 max-w-[1920px] items-center justify-between px-5">
+        <div className="flex items-center gap-6">
+          <button
+            type="button"
+            className="flex items-center gap-2.5"
+            onClick={() => navigate("/workspace")}
           >
-            <div className="h-8 w-8 rounded-lg bg-amber flex items-center justify-center text-[#17211d] font-bold text-sm shadow-lg">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-amber text-[13px] font-extrabold text-[#17211d]">
               К
             </div>
-            <span className="font-display text-lg font-bold text-fog tracking-tight">КАДР</span>
-          </div>
-          
-          {/* Navigation Tabs */}
-          <nav className="hidden md:flex items-center gap-1">
+            <span className="font-display text-[15px] font-bold tracking-tight text-fog">КАДР</span>
+          </button>
+
+          <nav className="hidden md:flex items-center gap-0.5">
             {[
-              { path: '/workspace', label: 'Рабочее место' },
-              { path: '/team', label: 'Сотрудники' },
-              { path: '/statistics', label: 'Статистика облака' },
+              { path: "/workspace", label: "Рабочее место" },
+              { path: "/team", label: "Сотрудники" },
+              { path: "/statistics", label: "Статистика облака" },
             ].map((item) => (
               <button
                 key={item.path}
-                onClick={() => handleNavClick(item.path)}
-                className={`
-                  px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200
-                  ${isActive(item.path)
-                    ? 'bg-raised text-fog shadow-sm'
-                    : 'text-mist hover:text-fog hover:bg-raised/50'}
-                `}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
+                  isActive(item.path)
+                    ? "bg-raised text-fog"
+                    : "text-mist hover:text-fog hover:bg-raised/50"
+                }`}
               >
                 {item.label}
               </button>
@@ -76,110 +85,82 @@ export const Header: React.FC = () => {
           </nav>
         </div>
 
-        {/* Profile Section */}
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-3 p-2 rounded-lg hover:bg-raised transition-colors"
-            >
-              <div className="text-right hidden lg:block">
-                <div className="text-sm font-bold text-fog leading-tight">{user?.name || 'Пользователь'}</div>
-                <div className="text-xs flex items-center gap-1.5 mt-1">
-                  <span className={`w-2 h-2 rounded-full ${currentStatus.color} ring-2 ring-panel`}></span>
-                  <span className="text-mist">{currentStatus.label}</span>
-                </div>
-              </div>
-              <div className="relative">
-                <img
-                  className="h-9 w-9 rounded-lg bg-raised object-cover ring-2 ring-border"
-                  src={user?.avatar || 'https://via.placeholder.com/150'}
-                  alt="Avatar"
-                />
-                <span className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full ring-2 ring-panel ${currentStatus.color}`}></span>
-              </div>
-              <ChevronDown size={16} className="text-mist" />
-            </button>
-
-            {isProfileOpen && (
-              <>
-                <div 
-                  className="fixed inset-0 z-10" 
-                  onClick={() => setIsProfileOpen(false)}
-                ></div>
-                <div className="absolute right-0 mt-2 w-56 bg-panel rounded-xl shadow-2xl py-2 z-20 ring-1 ring-border">
-                  <div className="px-4 py-3 border-b border-border">
-                    <p className="text-xs font-semibold text-mist uppercase tracking-wide">Статус</p>
-                    <button 
-                      onClick={() => setIsStatusModalOpen(true)}
-                      className="text-sm font-medium text-amber hover:text-amber2 w-full text-left mt-1 transition-colors"
-                    >
-                      Изменить статус
-                    </button>
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      navigate('/settings');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-mist hover:text-fog hover:bg-raised transition-colors"
-                  >
-                    Настройки
-                  </button>
-                  
-                  <button
-                    onClick={handleLogout}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-ember hover:bg-ember/10 transition-colors"
-                  >
-                    Выйти
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Status Modal */}
-      {isStatusModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsStatusModalOpen(false)}></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-panel rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full ring-1 ring-border">
-              <div className="bg-panel px-6 pt-6 pb-4">
-                <h3 className="text-lg font-display font-bold text-fog mb-4">Выберите статус</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {statuses.map((status) => (
-                    <button
-                      key={status.id}
-                      onClick={() => handleStatusChange(status.id)}
-                      className={`flex items-center p-3 rounded-lg border transition-all ${
-                        user?.status === status.id 
-                          ? 'border-amber bg-amber/10' 
-                          : 'border-border bg-raised/50 hover:bg-raised'
-                      }`}
-                    >
-                      <span className={`w-3 h-3 rounded-full mr-3 ${status.color}`}></span>
-                      <span className="text-fog font-medium">{status.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-deep/50 px-6 py-4 border-t border-line">
-                <button
-                  type="button"
-                  className="w-full inline-flex justify-center rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-bold text-mist hover:bg-raised transition-colors"
-                  onClick={() => setIsStatusModalOpen(false)}
-                >
-                  Отмена
-                </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsProfileOpen((v) => !v)}
+            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-raised transition-colors"
+          >
+            <div className="hidden sm:block text-right leading-tight">
+              <div className="text-[13px] font-bold text-fog truncate max-w-[160px]">{displayName}</div>
+              <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[11px] text-mist">
+                <span className={`h-1.5 w-1.5 rounded-full ${currentStatus.color}`} />
+                {currentStatus.label}
               </div>
             </div>
-          </div>
+            <div className="relative">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-amber/20 text-[12px] font-extrabold text-amber ring-1 ring-border">
+                {initials(displayName)}
+              </span>
+              <span
+                className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-panel ${currentStatus.color}`}
+              />
+            </div>
+            <ChevronDown size={14} className={`text-mist transition-transform ${isProfileOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {isProfileOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setIsProfileOpen(false)} />
+              <div className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-panel shadow-2xl">
+                <div className="border-b border-border px-3.5 py-3">
+                  <div className="text-[13px] font-bold text-fog truncate">{displayName}</div>
+                  {displayEmail && (
+                    <div className="mt-0.5 font-mono text-[11px] text-mist truncate">{displayEmail}</div>
+                  )}
+                </div>
+                <div className="border-b border-border px-3.5 py-2.5">
+                  <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-dim">Статус</div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {STATUSES.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setStatus(s.id)}
+                        className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                          status === s.id
+                            ? "bg-amber/15 text-amber"
+                            : "text-mist hover:bg-raised hover:text-fog"
+                        }`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${s.color}`} />
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    navigate("/settings");
+                  }}
+                  className="w-full px-3.5 py-2.5 text-left text-[13px] font-medium text-mist hover:bg-raised hover:text-fog"
+                >
+                  Настройки
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="w-full px-3.5 py-2.5 text-left text-[13px] font-medium text-ember hover:bg-ember/10"
+                >
+                  Выйти
+                </button>
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </header>
   );
 };
