@@ -57,9 +57,9 @@ declare global {
 }
 
 const FIXED_STANDS = [
-  { id: "fix-stand", name: "fix", baseUrl: "https://fix-online.sbis.ru", color: "#ffb454" },
-  { id: "test-stand", name: "test", baseUrl: "https://test-online.sbis.ru", color: "#4fe0c4" },
-  { id: "pre-test-stand", name: "pre-test", baseUrl: "https://pre-test-online.sbis.ru", color: "#7fb7ff" },
+  { id: "fix-stand", name: "fix", baseUrl: "https://fix-cloud.sbis.ru", color: "#ffb454" },
+  { id: "test-stand", name: "test", baseUrl: "https://test-cloud.sbis.ru", color: "#4fe0c4" },
+  { id: "pre-test-stand", name: "pre-test", baseUrl: "https://pre-test-cloud.sbis.ru", color: "#7fb7ff" },
 ];
 
 export default function CloudStatisticPage() {

@@ -15,7 +15,7 @@ $s = kadr_require_session();
 $b = kadr_body();
 
 $standId  = trim((string) ($b['standId'] ?? ''));
-$standUrl = rtrim(trim((string) ($b['standUrl'] ?? '')), '/');
+$standUrl = kadr_stand_request_url(rtrim(trim((string) ($b['standUrl'] ?? '')), '/'));
 $payload  = $b['payload'] ?? null;
 
 if ($standId === '' || $standUrl === '' || !is_array($payload)) {
@@ -50,32 +50,10 @@ if (!isset($payload['id'])) {
     $payload['id'] = 1;
 }
 
-$urlCandidates = [];
-foreach (kadr_stand_request_bases($standUrl) as $base) {
-    $urlCandidates[] = $base . '/stats-cloud-interface/service/';
-    $urlCandidates[] = $base . '/stats-cloud-interface/service/?srv=1';
-}
-$urlCandidates = array_values(array_unique($urlCandidates));
-
-$rpc = null;
-foreach ($urlCandidates as $url) {
-    $attempt = kadr_sbis_rpc($url, $payload, $cookies, 'CommonStatistic.GetReport');
-    $rpc = $attempt;
-    if ($attempt['error'] === '' && $attempt['json']) {
-        break;
-    }
-    // DNS/сеть — пробуем следующий базовый URL
-    if ($attempt['error'] !== '' && preg_match('/could not resolve host|name or service not known|getaddrinfo/i', $attempt['error'])) {
-        continue;
-    }
-    // Ответ получен (даже с RPC-ошибкой) — дальше не крутим
-    if ($attempt['error'] === '') {
-        break;
-    }
-}
-if (!$rpc) {
-    kadr_json(['ok' => false, 'error' => 'Не удалось вызвать GetReport'], 502);
-}
+// GetReport строго на {stand}/stats-cloud-interface/service/ с cookie сессии
+$standBase = kadr_stand_request_url($standUrl);
+$url = $standBase . '/stats-cloud-interface/service/';
+$rpc = kadr_sbis_rpc($url, $payload, $cookies, 'CommonStatistic.GetReport');
 
 if ($rpc['error'] !== '') {
     kadr_json(['ok' => false, 'error' => 'Не удалось вызвать GetReport: ' . $rpc['error']], 502);
@@ -91,7 +69,7 @@ if (!$rpc['json']) {
 
 if ($rpc['cookies']) {
     $merged = array_merge(kadr_cookie_map_from_header($cookies), $rpc['cookies']);
-    kadr_save_stand_session((string) $s['account_id'], $standId, $standUrl, kadr_cookie_header_from_map($merged));
+    kadr_save_stand_session((string) $s['account_id'], $standId, $standBase, kadr_cookie_header_from_map($merged));
 }
 
 $err = kadr_sbis_rpc_error($rpc['json']);

@@ -89,6 +89,8 @@ if ($standId === '') {
     kadr_json(['ok' => false, 'error' => 'Не указан стенд'], 400);
 }
 
+$standUrl = kadr_stand_request_url($standUrl);
+
 $saved = kadr_load_stand_row($accountId, $standId);
 $accountDefaults = kadr_load_stand_row($accountId, kadr_account_creds_stand_id());
 
@@ -106,7 +108,7 @@ if ($password === '' && $accountDefaults && !empty($accountDefaults['password_en
     $password = kadr_decrypt_secret((string) $accountDefaults['password_enc']);
 }
 if ($standUrl === '' && $saved) {
-    $standUrl = rtrim((string) ($saved['stand_url'] ?? ''), '/');
+    $standUrl = kadr_stand_request_url((string) ($saved['stand_url'] ?? ''));
 }
 
 // Только сохранить логин/пароль на аккаунт (без SAP.Authenticate)
@@ -229,32 +231,22 @@ $payloads = [
     ],
 ];
 
-// Публичный вход: *-online.sbis.ru (с reg.ru *-cloud.sbis.ru не резолвится).
-// Целевой путь авторизации — /auth/service/
-$urls = [];
-foreach (kadr_stand_request_bases($standUrl) as $base) {
-    $urls[] = $base . '/auth/service/';
-    $urls[] = $base . '/auth/service/?srv=1';
-}
-$urls = array_values(array_unique($urls));
+// Auth строго на {stand}/auth/service/ (канон: *-cloud.sbis.ru)
+$standBase = kadr_stand_request_url($standUrl);
+$urls = [$standBase . '/auth/service/'];
 
 $lastErr = '';
 $lastHttp = 0;
 $lastPreview = '';
 $cookies = [];
 $okRpc = null;
-$usedBase = kadr_stand_request_url($standUrl);
+$usedBase = $standBase;
 
 foreach ($urls as $url) {
     foreach ($payloads as $payload) {
-        // full_url в data должен совпадать с хостом запроса
-        if (preg_match('#^(https://[^/]+)#i', $url, $um)) {
-            $payloadForUrl = $payload;
-            if (isset($payloadForUrl['params']['data']['d'][6])) {
-                $payloadForUrl['params']['data']['d'][6] = $um[1] . '/auth/?ret=%2F';
-            }
-        } else {
-            $payloadForUrl = $payload;
+        $payloadForUrl = $payload;
+        if (isset($payloadForUrl['params']['data']['d'][6])) {
+            $payloadForUrl['params']['data']['d'][6] = $standBase . '/auth/?ret=%2F';
         }
 
         $rpc = kadr_sbis_rpc($url, $payloadForUrl, '', 'SAP.Authenticate');
@@ -308,7 +300,7 @@ if (!$cookies) {
 }
 
 $header = kadr_cookie_header_from_map($cookies);
-// В БД храним URL, с которого реально ходили (online), чтобы GetReport попал туда же
+// В БД храним канонический *-cloud.sbis.ru
 kadr_save_stand_session($accountId, $standId, $usedBase ?: $standUrl, $header, $login, $password);
 
 kadr_json([

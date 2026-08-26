@@ -199,18 +199,16 @@ function kadr_cookies_from_auth_result(?array $json): array
 }
 
 /**
- * Публичный hostname стенда для запросов с внешнего хостинга (reg.ru).
- * `*-cloud.sbis.ru` резолвится только во внутренней DNS Tensor → PHP на reg.ru
- * получает "Could not resolve host". Публичный вход — `*-online.sbis.ru`
- * (тот же auth/service и stats-cloud-interface).
+ * Канонический hostname стенда: всегда *-cloud.sbis.ru
+ * (не *-online.sbis.ru). Auth и GetReport идут только на cloud.
  */
 function kadr_stand_request_url(string $standUrl): string
 {
     $standUrl = rtrim(trim($standUrl), '/');
     $count = 0;
     $mapped = preg_replace(
-        '#^(https://)([a-z0-9-]+)-cloud(\.sbis\.ru)$#i',
-        '$1$2-online$3',
+        '#^(https://)([a-z0-9-]+)-online(\.sbis\.ru)$#i',
+        '$1$2-cloud$3',
         $standUrl,
         1,
         $count
@@ -218,19 +216,11 @@ function kadr_stand_request_url(string $standUrl): string
     return ($count > 0 && is_string($mapped)) ? $mapped : $standUrl;
 }
 
-/** Базы URL для RPC: сначала online (доступен снаружи), затем исходный. */
+/** Единственная база URL для RPC — канонический *-cloud.sbis.ru. */
 function kadr_stand_request_bases(string $standUrl): array
 {
-    $orig = rtrim(trim($standUrl), '/');
-    $pub  = kadr_stand_request_url($orig);
-    $bases = [];
-    if ($pub !== '') {
-        $bases[] = $pub;
-    }
-    if ($orig !== '' && $orig !== $pub) {
-        $bases[] = $orig;
-    }
-    return $bases;
+    $base = kadr_stand_request_url($standUrl);
+    return $base !== '' ? [$base] : [];
 }
 
 function kadr_sbis_dns_hint(string $error, string $url): string
@@ -238,12 +228,8 @@ function kadr_sbis_dns_hint(string $error, string $url): string
     if ($error === '' || !preg_match('/could not resolve host|name or service not known|getaddrinfo/i', $error)) {
         return $error;
     }
-    $host = parse_url($url, PHP_URL_HOST) ?: '';
-    if ($host !== '' && preg_match('/-cloud\.sbis\.ru$/i', $host)) {
-        $online = preg_replace('/-cloud\.sbis\.ru$/i', '-online.sbis.ru', $host);
-        return $error . '. Хост ' . $host . ' недоступен с внешнего DNS; используйте https://' . $online . '/';
-    }
-    return $error . '. Стенд недоступен с сервера КАДР (нужен публичный *-online.sbis.ru или хост внутри сети Tensor).';
+    $host = parse_url($url, PHP_URL_HOST) ?: $url;
+    return $error . '. Хост ' . $host . ' недоступен с сервера КАДР (нужна DNS/сеть Tensor для *-cloud.sbis.ru).';
 }
 
 /**
