@@ -22,8 +22,12 @@ async function req<T = Record<string, unknown>>(
   path: string,
   opts: { method?: string; body?: unknown; token?: string | null } = {},
 ): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (opts.token) headers["Authorization"] = `Bearer ${opts.token}`;
+  const headers: Record<string, string> = {};
+  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  if (opts.token) {
+    headers["Authorization"] = `Bearer ${opts.token}`;
+    headers["X-Authorization"] = `Bearer ${opts.token}`;
+  }
   const res = await fetch(`${BASE}/${path}`, {
     method: opts.method ?? "POST",
     headers,

@@ -6,9 +6,14 @@ require_once __DIR__ . '/db.php';
 
 function kadr_body(): array
 {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
     $raw  = file_get_contents('php://input');
     $data = json_decode($raw ?: '{}', true);
-    return is_array($data) ? $data : [];
+    $cached = is_array($data) ? $data : [];
+    return $cached;
 }
 
 function kadr_token(): ?string
@@ -24,9 +29,8 @@ function kadr_token(): ?string
     
     // Также проверяем, если токен был передан через POST/GET параметр (резервный вариант)
     if (!$h) {
-        $raw  = file_get_contents('php://input');
-        $data = json_decode($raw ?: '{}', true);
-        if (is_array($data) && isset($data['token']) && is_string($data['token'])) {
+        $data = kadr_body();
+        if (isset($data['token']) && is_string($data['token'])) {
             return trim($data['token']);
         }
     }
