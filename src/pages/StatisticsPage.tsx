@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Header } from '../components/Header';
 import { backend } from "../backend";
 import type { PublicUser } from "../backend";
-import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download, Plus, Eye, EyeOff } from "lucide-react";
+import { BarChart3, Inbox, RefreshCw, Settings, Download, Plus, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ReportTable from "../components/ReportTable";
@@ -68,6 +68,7 @@ export default function CloudStatisticPage() {
   const [standStates, setStandStates] = useState<Record<string, StandState>>({});
   const [authenticating, setAuthenticating] = useState<string | null>(null);
   const [passwordVisible, setPasswordVisible] = useState<Record<string, boolean>>({});
+  const [credsOpen, setCredsOpen] = useState<Record<string, boolean>>({});
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Settings state
@@ -266,6 +267,7 @@ export default function CloudStatisticPage() {
         syncStatus: 'success',
         errorMessage: undefined,
       });
+      setCredsOpen((p) => ({ ...p, [standId]: false }));
       const accountId = getAccountId();
       localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify({
         ...standCredentials,
@@ -559,133 +561,146 @@ export default function CloudStatisticPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Title with Settings Button */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="font-display text-[28px] font-bold text-fog">Статистика облака</h1>
-            <p className="text-mist mt-1 text-sm">Мониторинг и отчеты по тестам команды</p>
+            <h1 className="font-display text-[24px] font-bold text-fog">Статистика облака</h1>
+            <p className="text-mist mt-0.5 text-[13px]">Отчёты CommonStatistic по стендам</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-[13px] font-bold text-fog transition-all duration-150 hover:bg-raised active:scale-[0.98]"
-            >
-              <Settings size={18} />
-              Настройки
-            </button>
-          </div>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3.5 py-2 text-[13px] font-bold text-fog transition-colors hover:bg-raised"
+          >
+            <Settings size={16} />
+            Настройки
+          </button>
         </div>
 
         {/* Fixed Stands Blocks */}
-        <div className="mb-8">
-          <h2 className="font-display text-[18px] font-semibold text-fog mb-4">Стенды</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-6">
+          <h2 className="font-display text-[16px] font-semibold text-fog mb-3">Стенды</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {FIXED_STANDS.map((stand) => {
               const state = getStandState(stand.id);
+              const creds = getStandCredentials(stand.id);
+              const synced = state.syncStatus === "success";
+              const showForm = !synced || credsOpen[stand.id] || state.syncStatus === "error";
               return (
                 <div
                   key={stand.id}
-                  className="group rounded-xl border border-line bg-panel/60 p-5 transition-all duration-200 hover:bg-panel/80 hover:shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
+                  className="rounded-xl border border-line bg-panel/70 p-3.5 transition-colors hover:border-line2"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: stand.color }}
-                      />
-                      <h3 className="font-display text-[16px] font-bold text-fog">{stand.name}</h3>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stand.color }} />
+                      <h3 className="font-display text-[14px] font-bold text-fog">{stand.name}</h3>
                     </div>
-                  </div>
-                  <p className="text-xs text-mist font-mono bg-deep/50 p-2 rounded border border-border truncate mb-3">
-                    {stand.baseUrl}
-                  </p>
-                  
-                  {/* Status indicator */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] text-dim font-semibold">
-                      Стенд
-                    </span>
-                    {state.syncStatus === 'success' && (
-                      <span className="text-[10px] px-2 py-1 rounded bg-sage/20 text-sage font-semibold">
-                        Синхронизирован
+                    {state.syncStatus === "success" && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-sage/15 text-sage font-semibold shrink-0">
+                        <CheckCircle2 size={11} /> Синхр.
                       </span>
                     )}
-                    {state.syncStatus === 'syncing' && (
-                      <span className="text-[10px] px-2 py-1 rounded bg-amber/20 text-amber font-semibold animate-pulse">
-                        Синхронизация...
+                    {state.syncStatus === "syncing" && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber/15 text-amber font-semibold animate-pulse shrink-0">
+                        …
                       </span>
                     )}
-                    {state.syncStatus === 'error' && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] px-2 py-1 rounded bg-ember/20 text-ember font-semibold">
-                          Ошибка
-                        </span>
-                        {state.errorMessage && (
-                          <span className="text-[10px] text-ember break-all">
-                            {state.errorMessage}
-                          </span>
-                        )}
-                      </div>
+                    {state.syncStatus === "error" && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-ember/15 text-ember font-semibold shrink-0">
+                        <AlertCircle size={11} /> Ошибка
+                      </span>
                     )}
-                    {!state.syncStatus || state.syncStatus === 'idle' && (
-                      <span className="text-[10px] px-2 py-1 rounded bg-slate/20 text-slate font-semibold">
-                        Не синхронизирован
+                    {(state.syncStatus === "idle" || !state.syncStatus) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-raised text-mist font-semibold shrink-0">
+                        Нет сессии
                       </span>
                     )}
                   </div>
 
-                  {/* Cookie status */}
-                  {state.syncStatus === 'success' && (
-                    <div className="mb-3 p-2 bg-deep/50 rounded border border-border">
-                      <p className="text-[10px] text-sage font-semibold">
-                        Cookie сессии сохранены в БД и будут использованы в GetReport
-                      </p>
-                    </div>
+                  <a
+                    href={stand.baseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-[11px] font-mono text-mist/80 hover:text-amber truncate mb-2.5"
+                    title={stand.baseUrl}
+                  >
+                    {stand.baseUrl.replace(/^https:\/\//, "")}
+                  </a>
+
+                  {state.errorMessage && (
+                    <p className="mb-2 text-[10px] text-ember leading-snug line-clamp-2">{state.errorMessage}</p>
                   )}
-                  
-                  {/* Auth form for this stand */}
-                  <div className="space-y-2 mb-3">
-                    <input
-                      type="text"
-                      placeholder="Логин"
-                      value={getStandCredentials(stand.id).login}
-                      onChange={(e) => updateStandCredentials(stand.id, 'login', e.target.value)}
-                      className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
-                    />
-                    <div className="relative">
-                      <input
-                        type={passwordVisible[stand.id] ? "text" : "password"}
-                        placeholder="Пароль"
-                        value={getStandCredentials(stand.id).password}
-                        onChange={(e) => updateStandCredentials(stand.id, 'password', e.target.value)}
-                        className="w-full px-3 py-2 bg-deep border border-line rounded text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber pr-10"
-                      />
+
+                  {synced && !showForm ? (
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => togglePasswordVisibility(stand.id)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-mist/50 hover:text-fog transition-colors"
+                        onClick={() => setCredsOpen((p) => ({ ...p, [stand.id]: true }))}
+                        className="flex-1 rounded-lg border border-line bg-raised/60 px-3 py-1.5 text-[12px] font-semibold text-mist hover:text-fog hover:border-line2 transition-colors"
                       >
-                        {passwordVisible[stand.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                        Переподключить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSyncStand(stand.id, stand.baseUrl)}
+                        disabled={authenticating === stand.id || !creds.login.trim() || !creds.password.trim()}
+                        title="Обновить сессию"
+                        className="grid h-8 w-8 place-items-center rounded-lg bg-amber text-[#17211d] hover:bg-amber2 disabled:opacity-40"
+                      >
+                        {authenticating === stand.id
+                          ? <RefreshCw size={14} className="animate-spin" />
+                          : <RefreshCw size={14} />}
                       </button>
                     </div>
-                  </div>
-                  
-                  <button
-                    onClick={() => handleSyncStand(stand.id, stand.baseUrl)}
-                    disabled={authenticating === stand.id || !getStandCredentials(stand.id).login.trim() || !getStandCredentials(stand.id).password.trim()}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber/90 px-3 py-2 text-[12px] font-bold text-[#17211d] transition-all duration-150 hover:bg-amber disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {authenticating === stand.id ? (
-                      <>
-                        <RefreshCw size={14} className="animate-spin" />
-                        Синхронизация...
-                      </>
-                    ) : (
-                      <>
-                        <LogOut size={14} />
-                        Синхронизация
-                      </>
-                    )}
-                  </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Логин"
+                        value={creds.login}
+                        onChange={(e) => updateStandCredentials(stand.id, "login", e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-deep border border-line rounded-lg text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber"
+                      />
+                      <div className="relative">
+                        <input
+                          type={passwordVisible[stand.id] ? "text" : "password"}
+                          placeholder="Пароль"
+                          value={creds.password}
+                          onChange={(e) => updateStandCredentials(stand.id, "password", e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-deep border border-line rounded-lg text-[12px] text-fog placeholder-mist/50 focus:outline-none focus:border-amber pr-9"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => togglePasswordVisibility(stand.id)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-mist/50 hover:text-fog"
+                        >
+                          {passwordVisible[stand.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        {synced && (
+                          <button
+                            type="button"
+                            onClick={() => setCredsOpen((p) => ({ ...p, [stand.id]: false }))}
+                            className="rounded-lg border border-line px-3 py-1.5 text-[12px] font-semibold text-mist hover:text-fog"
+                          >
+                            Скрыть
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleSyncStand(stand.id, stand.baseUrl)}
+                          disabled={authenticating === stand.id || !creds.login.trim() || !creds.password.trim()}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-amber px-3 py-1.5 text-[12px] font-bold text-[#17211d] hover:bg-amber2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {authenticating === stand.id ? (
+                            <><RefreshCw size={13} className="animate-spin" />Синхронизация…</>
+                          ) : (
+                            <><RefreshCw size={13} />Синхронизация</>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
