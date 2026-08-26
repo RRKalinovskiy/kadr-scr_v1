@@ -12,6 +12,7 @@ import {
   checkStandSession,
   fetchStandReport,
   formatCell,
+  loadStandCredentials,
   type ReportFilter,
   type ReportTableData,
 } from "../statsCloud";
@@ -237,13 +238,36 @@ export default function CloudStatisticPage() {
           console.error('Failed to load stand data:', e);
         }
 
+        // Учётные данные и сессии стендов с аккаунта (БД)
+        const fromDb = await loadStandCredentials();
+        const nextCreds: Record<string, StandCredentials> = {};
         const nextStates: Record<string, StandState> = {};
-        await Promise.all(FIXED_STANDS.map(async (stand) => {
-          const has = await checkStandSession(stand.id);
-          nextStates[stand.id] = has
-            ? { syncStatus: 'success', cookies: 'db' }
-            : { syncStatus: 'idle' };
-        }));
+        for (const stand of FIXED_STANDS) {
+          const row = fromDb[stand.id];
+          if (row) {
+            if (row.login || row.password) {
+              nextCreds[stand.id] = { login: row.login, password: row.password };
+            }
+            nextStates[stand.id] = row.hasSession
+              ? { syncStatus: 'success', cookies: 'db' }
+              : { syncStatus: 'idle' };
+          } else {
+            const one = await checkStandSession(stand.id);
+            if (one.login || one.password) {
+              nextCreds[stand.id] = { login: one.login || '', password: one.password || '' };
+            }
+            nextStates[stand.id] = one.hasSession
+              ? { syncStatus: 'success', cookies: 'db' }
+              : { syncStatus: 'idle' };
+          }
+        }
+        if (Object.keys(nextCreds).length) {
+          setStandCredentials((prev) => ({ ...prev, ...nextCreds }));
+          localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify({
+            ...JSON.parse(localStorage.getItem(`stats-credentials-${accountId}`) || '{}'),
+            ...nextCreds,
+          }));
+        }
         setStandStates(nextStates);
 
         setLoading(false);
@@ -341,11 +365,16 @@ export default function CloudStatisticPage() {
 
   const handleSyncStand = (standId: string, standUrl: string) => {
     const creds = getStandCredentials(standId);
-    if (!creds.login.trim() || !creds.password.trim()) {
-      alert('Введите логин и пароль');
+    // Пустой пароль допустим — сервер подставит сохранённый с аккаунта
+    if (!creds.login.trim() && !creds.password.trim()) {
+      alert('Введите логин и пароль стенда');
       return;
     }
-    authenticateToStand(standId, standUrl, creds.login, creds.password);
+    if (!creds.login.trim()) {
+      alert('Введите логин');
+      return;
+    }
+    void authenticateToStand(standId, standUrl, creds.login, creds.password);
   };
 
   // Добавление нового фильтра в настройки
@@ -642,7 +671,7 @@ export default function CloudStatisticPage() {
                       <button
                         type="button"
                         onClick={() => handleSyncStand(stand.id, stand.baseUrl)}
-                        disabled={authenticating === stand.id || !creds.login.trim() || !creds.password.trim()}
+                        disabled={authenticating === stand.id || !creds.login.trim()}
                         title="Обновить сессию"
                         className="grid h-8 w-8 place-items-center rounded-lg bg-amber text-[#17211d] hover:bg-amber2 disabled:opacity-40"
                       >
@@ -689,7 +718,7 @@ export default function CloudStatisticPage() {
                         <button
                           type="button"
                           onClick={() => handleSyncStand(stand.id, stand.baseUrl)}
-                          disabled={authenticating === stand.id || !creds.login.trim() || !creds.password.trim()}
+                          disabled={authenticating === stand.id || !creds.login.trim()}
                           className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-amber px-3 py-1.5 text-[12px] font-bold text-[#17211d] hover:bg-amber2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {authenticating === stand.id ? (

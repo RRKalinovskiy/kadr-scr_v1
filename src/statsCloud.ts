@@ -324,16 +324,52 @@ export function isNumericColumn(name: string, rows: Record<string, unknown>[]): 
   return rows.some((r) => typeof r[name] === "number");
 }
 
-export async function authenticateStand(standId: string, standUrl: string, login: string, password: string): Promise<{ cookiePreview?: string }> {
+export async function authenticateStand(
+  standId: string,
+  standUrl: string,
+  login: string,
+  password: string,
+): Promise<{ cookiePreview?: string; login?: string }> {
   return apiPost("stand_auth.php", { standId, standUrl, login, password });
 }
 
-export async function checkStandSession(standId: string): Promise<boolean> {
+export async function checkStandSession(standId: string): Promise<{
+  hasSession: boolean;
+  login?: string;
+  password?: string;
+}> {
   try {
-    const d = await apiGet<{ hasSession?: boolean }>(`stand_auth.php?standId=${encodeURIComponent(standId)}`);
-    return Boolean(d.hasSession);
+    const d = await apiGet<{ hasSession?: boolean; login?: string; password?: string }>(
+      `stand_auth.php?standId=${encodeURIComponent(standId)}`,
+    );
+    return {
+      hasSession: Boolean(d.hasSession),
+      login: d.login || "",
+      password: d.password || "",
+    };
   } catch {
-    return false;
+    return { hasSession: false };
+  }
+}
+
+export async function loadStandCredentials(): Promise<
+  Record<string, { login: string; password: string; hasSession: boolean }>
+> {
+  try {
+    const d = await apiGet<{
+      stands?: Record<string, { login?: string; password?: string; hasSession?: boolean }>;
+    }>("stand_auth.php");
+    const out: Record<string, { login: string; password: string; hasSession: boolean }> = {};
+    for (const [id, row] of Object.entries(d.stands ?? {})) {
+      out[id] = {
+        login: row.login || "",
+        password: row.password || "",
+        hasSession: Boolean(row.hasSession),
+      };
+    }
+    return out;
+  } catch {
+    return {};
   }
 }
 
