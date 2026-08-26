@@ -50,8 +50,32 @@ if (!isset($payload['id'])) {
     $payload['id'] = 1;
 }
 
-$url = $standUrl . '/stats-cloud-interface/service/?srv=1';
-$rpc = kadr_sbis_rpc($url, $payload, $cookies, 'CommonStatistic.GetReport');
+$urlCandidates = [];
+foreach (kadr_stand_request_bases($standUrl) as $base) {
+    $urlCandidates[] = $base . '/stats-cloud-interface/service/';
+    $urlCandidates[] = $base . '/stats-cloud-interface/service/?srv=1';
+}
+$urlCandidates = array_values(array_unique($urlCandidates));
+
+$rpc = null;
+foreach ($urlCandidates as $url) {
+    $attempt = kadr_sbis_rpc($url, $payload, $cookies, 'CommonStatistic.GetReport');
+    $rpc = $attempt;
+    if ($attempt['error'] === '' && $attempt['json']) {
+        break;
+    }
+    // DNS/сеть — пробуем следующий базовый URL
+    if ($attempt['error'] !== '' && preg_match('/could not resolve host|name or service not known|getaddrinfo/i', $attempt['error'])) {
+        continue;
+    }
+    // Ответ получен (даже с RPC-ошибкой) — дальше не крутим
+    if ($attempt['error'] === '') {
+        break;
+    }
+}
+if (!$rpc) {
+    kadr_json(['ok' => false, 'error' => 'Не удалось вызвать GetReport'], 502);
+}
 
 if ($rpc['error'] !== '') {
     kadr_json(['ok' => false, 'error' => 'Не удалось вызвать GetReport: ' . $rpc['error']], 502);
