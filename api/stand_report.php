@@ -67,7 +67,7 @@ if (!$rpc['json']) {
 
 if ($rpc['cookies']) {
     $merged = array_merge(kadr_cookie_map_from_header($cookies), $rpc['cookies']);
-    kadr_save_stand_cookies((string) $s['account_id'], $standId, kadr_cookie_header_from_map($merged));
+    kadr_save_stand_session((string) $s['account_id'], $standId, $standUrl, kadr_cookie_header_from_map($merged));
 }
 
 $err = kadr_sbis_rpc_error($rpc['json']);
