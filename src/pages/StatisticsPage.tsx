@@ -4,20 +4,17 @@ import { Header } from '../components/Header';
 import { backend } from "../backend";
 import type { PublicUser } from "../backend";
 import { BarChart3, Inbox, RefreshCw, Settings, LogOut, Download, Plus, Eye, EyeOff } from "lucide-react";
-import { loadStateFor, saveStateFor, type PersistedState } from "../data";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-interface ReportFilter {
-  id: string;
-  name: string;
-  filterJson: string;
-  dateStart?: string;
-  dateEnd?: string;
-  timeStart?: string;
-  timeEnd?: string;
-  createdAt: number;
-}
+import ReportTable from "../components/ReportTable";
+import {
+  authenticateStand,
+  checkStandSession,
+  fetchStandReport,
+  formatCell,
+  type ReportFilter,
+  type ReportTableData,
+} from "../statsCloud";
 
 interface SavedReport {
   id: string;
@@ -26,7 +23,7 @@ interface SavedReport {
   createdAt: number;
   createdBy: string;
   filterJson: string;
-  standData: Record<string, any>; // Данные по каждому стенду: { fix: {rows: [...]}, test: {...}, pre-test: {...} }
+  standData: Record<string, ReportTableData>;
 }
 
 interface StatisticsSettings {
@@ -90,18 +87,7 @@ export default function CloudStatisticPage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   
-  const getAccountId = (): string => {
-    const token = localStorage.getItem("kadr-regapi-token");
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.accountId || payload.sub || "default";
-      } catch {
-        return "default";
-      }
-    }
-    return "default";
-  };
+  const getAccountId = (): string => user?.accountId ?? "default";
 
   const getStandCredentials = (standId: string): StandCredentials => standCredentials[standId] || { login: "", password: "" };
   
@@ -186,9 +172,7 @@ export default function CloudStatisticPage() {
 
   // Копирование ссылки в буфер обмена
   const handleShareReport = (report: SavedReport) => {
-    const stand = FIXED_STANDS.find(s => s.id === report.standId);
-    if (!stand) return;
-    
+    const stand = FIXED_STANDS.find(s => s.id === currentStandView) || FIXED_STANDS[0];
     const link = generateReportLink(report.filterJson, stand.baseUrl);
     navigator.clipboard.writeText(link).then(() => {
       alert('Ссылка скопирована в буфер обмена');
@@ -200,94 +184,67 @@ export default function CloudStatisticPage() {
   // Скачивание отчета в PDF
   const handleDownloadReport = (report: SavedReport) => {
     const doc = new jsPDF();
-    
-    // Заголовок отчета
     doc.setFontSize(18);
     doc.text(`Отчет: ${report.filterName}`, 14, 20);
-    
-    // Информация о стенде и дате
     doc.setFontSize(11);
-    const standLabel = currentStandView === 'fix' ? 'Fix' : currentStandView === 'test' ? 'Test' : 'Pre-Test';
+    const standMeta = FIXED_STANDS.find(s => s.id === currentStandView);
+    const standLabel = standMeta?.name ?? currentStandView;
     doc.text(`Стенд: ${standLabel}`, 14, 30);
     doc.text(`Дата формирования: ${new Date(report.createdAt).toLocaleString('ru-RU')}`, 14, 36);
-    
-    // Получаем данные для текущего стенда
+
     const standData = report.standData[currentStandView];
     const rows = standData?.rows || [];
-    
-    // Подготовка данных для таблицы
-    const tableColumn = ["Метод", "Кол-во вызовов", "Кол-во ошибок", "Кол-во предупреждений", "Max (мс)", "Sum (мс)", "Ave (мс)"];
-    const tableRows: any[][] = [];
-    
-    rows.forEach((row: any) => {
-      const rowData = [
-        row.name0 || row.method || '',
-        row['Количество вызовов'] ?? 0,
-        row['Количество ошибок'] ?? 0,
-        row['Количество предупреждений'] ?? 0,
-        row['Максимальная продолжительность (мс)'] ?? 0,
-        row['Общая продолжительность (мс)'] ?? 0,
-        row['Средняя продолжительность (мс)'] ?? 0
-      ];
-      tableRows.push(rowData);
-    });
-    
-    // Генерация таблицы
+    const columns = standData?.columns?.length ? standData.columns : (rows[0] ? Object.keys(rows[0]) : []);
+    const tableRows = rows.map((row) => columns.map((c) => formatCell(row[c])));
+
     autoTable(doc, {
-      head: [tableColumn],
+      head: [columns],
       body: tableRows,
       startY: 45,
       theme: 'grid',
-      styles: {
-        fontSize: 8,
-        cellPadding: 2
-      },
-      headStyles: {
-        fillColor: [245, 158, 11], // Янтарный цвет
-        textColor: [255, 255, 255],
-        fontStyle: 'bold'
-      },
-      alternateRowStyles: {
-        fillColor: [245, 245, 245]
-      }
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
     });
-    
-    // Сохранение файла
-    const fileName = `Otchet_${report.filterName}_${standLabel}.pdf`;
-    doc.save(fileName);
+
+    doc.save(`Otchet_${report.filterName}_${standLabel}.pdf`);
   };
 
   useEffect(() => {
-    // Проверка авторизации
-    backend.restore().then((result) => {
+    backend.restore().then(async (result) => {
       if (result && result.user) {
         setUser(result.user);
-        
-        // Загружаем настройки и состояние стендов из localStorage
-        const accountId = getAccountId();
-        const loadedSettings = loadSettings();
+        const accountId = result.user.accountId;
+        const loadedSettings = (() => {
+          const saved = localStorage.getItem(`stats-settings-${accountId}`);
+          if (saved) {
+            try { return JSON.parse(saved) as StatisticsSettings; } catch { /* ignore */ }
+          }
+          return { reportFilters: [], autoRefresh: false, refreshInterval: 60 };
+        })();
         setSettings(loadedSettings);
         if (loadedSettings.defaultFilterId) {
           setSelectedFilterId(loadedSettings.defaultFilterId);
         }
-        
-        // Загружаем сохраненные credentials и states для стендов
+
         try {
           const savedCredentials = localStorage.getItem(`stats-credentials-${accountId}`);
-          if (savedCredentials) {
-            setStandCredentials(JSON.parse(savedCredentials));
-          }
-          const savedStates = localStorage.getItem(`stats-states-${accountId}`);
-          if (savedStates) {
-            setStandStates(JSON.parse(savedStates));
-          }
-          // Загружаем сохраненные отчеты
-          const savedReports = loadSavedReports();
-          setSavedReports(savedReports);
+          if (savedCredentials) setStandCredentials(JSON.parse(savedCredentials));
+          const savedReportsRaw = localStorage.getItem(`stats-reports-${accountId}`);
+          if (savedReportsRaw) setSavedReports(JSON.parse(savedReportsRaw) as SavedReport[]);
         } catch (e) {
           console.error('Failed to load stand data:', e);
         }
-        
+
+        const nextStates: Record<string, StandState> = {};
+        await Promise.all(FIXED_STANDS.map(async (stand) => {
+          const has = await checkStandSession(stand.id);
+          nextStates[stand.id] = has
+            ? { syncStatus: 'success', cookies: 'db' }
+            : { syncStatus: 'idle' };
+        }));
+        setStandStates(nextStates);
+
         setLoading(false);
       } else {
         navigate("/auth");
@@ -300,114 +257,28 @@ export default function CloudStatisticPage() {
   // Функция аутентификации на стенде через внешний вызов
   const authenticateToStand = async (standId: string, standUrl: string, loginValue: string, passwordValue: string) => {
     setAuthenticating(standId);
-    
+    updateStandState(standId, { syncStatus: 'syncing', errorMessage: undefined });
     try {
-      // Проверяем наличие requirejs
-      if (!window.requirejs) {
-        console.warn('requirejs not available, using mock authentication');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
-        updateStandState(standId, { cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success' });
-        
-        // Сохраняем в localStorage
-        const accountId = getAccountId();
-        localStorage.setItem(`stats-states-${accountId}`, JSON.stringify(standStates));
-        localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify(standCredentials));
-        
-        setAuthenticating(null);
-        return;
-      }
-
-      // Внешний вызов для аутентификации
-      const fingerPrintData = {
-        Language: "ru-RU",
-        ScreenResolution: "1920;1080",
-        TimeZone: "Europe/Moscow",
-        NavigatorPlatform: "Win32",
-        MaxTouchPoints: 0,
-        Temp: "UserAgentData",
-        DeviceModel: "windows pc",
-        Platform: "Windows",
-        OsVersion: "Windows: 10.0.0"
-      };
-
-      const authData = {
-        data: {
-          d: [
-            "Viewer",
-            passwordValue,
-            false,
-            true,
-            false,
-            null,
-            `${standUrl}/auth/?ret=%2F`,
-            false,
-            { mobile: false, model: "", platform: "Windows", platformVersion: "10.0.0", fingerPrintData },
-            fingerPrintData
-          ],
-          s: [
-            { t: "Строка", n: "login" },
-            { t: "Строка", n: "password" },
-            { t: "Логическое", n: "stranger" },
-            { t: "Логическое", n: "from_browser" },
-            { t: "Логическое", n: "license_extended" },
-            { t: "Строка", n: "license_session_id" },
-            { t: "Строка", n: "full_url" },
-            { t: "Логическое", n: "get_last_url" },
-            { t: "JSON-объект", n: "browser_data" },
-            { t: "JSON-объект", n: "device_fingerprint_data" }
-          ],
-          _type: "record",
-          f: 0
-        }
-      };
-
-      // Вызываем внешний метод аутентификации
-      window.requirejs(['Types/source'], function(blo: any) {
-        new blo.SbisService({
-          endpoint: {
-            contract: 'SAP',
-            address: window.wsConfig?.appRoot?.search('auth') === -1 && `${standUrl}/auth/service/?x_version=26.4211-8`
-          }
-        }).call(
-          'Authenticate',
-          authData
-        ).addBoth(function(result: any) {
-          console.info('Authentication result:', result);
-          
-          // Проверяем наличие ошибки в ответе
-          if (result && result.message && result.message.includes("Проверьте правильность ввода логина и пароля")) {
-            updateStandState(standId, { 
-              syncStatus: 'error', 
-              errorMessage: result.message,
-              cookies: undefined 
-            });
-            
-            // Сохраняем в localStorage
-            const accountId = getAccountId();
-            localStorage.setItem(`stats-states-${accountId}`, JSON.stringify(standStates));
-            
-            setAuthenticating(null);
-            return;
-          }
-          
-          // Извлекаем cookie из результата
-          const mockCookies = `session_id=${Math.random().toString(36).substring(2)}; path=/; domain=${new URL(standUrl).hostname}; secure; HttpOnly`;
-          
-          updateStandState(standId, { cookies: mockCookies, lastSync: Date.now(), syncStatus: 'success', errorMessage: undefined });
-          
-          // Сохраняем в localStorage
-          const accountId = getAccountId();
-          localStorage.setItem(`stats-states-${accountId}`, JSON.stringify(standStates));
-          localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify(standCredentials));
-          
-          setAuthenticating(null);
-        });
+      const res = await authenticateStand(standId, standUrl, loginValue, passwordValue);
+      updateStandState(standId, {
+        cookies: res.cookiePreview || 'db',
+        lastSync: Date.now(),
+        syncStatus: 'success',
+        errorMessage: undefined,
       });
-      
+      const accountId = getAccountId();
+      localStorage.setItem(`stats-credentials-${accountId}`, JSON.stringify({
+        ...standCredentials,
+        [standId]: { login: loginValue, password: passwordValue },
+      }));
     } catch (error) {
       console.error('Authentication failed:', error);
-      updateStandState(standId, { syncStatus: 'error' });
+      updateStandState(standId, {
+        syncStatus: 'error',
+        cookies: undefined,
+        errorMessage: error instanceof Error ? error.message : 'Ошибка авторизации',
+      });
+    } finally {
       setAuthenticating(null);
     }
   };
@@ -417,55 +288,47 @@ export default function CloudStatisticPage() {
   // Загрузка отчетов по всем стендам
   const handleLoadAllReports = async () => {
     if (!selectedFilterId) return;
-    
     const filter = settings.reportFilters.find(f => f.id === selectedFilterId);
     if (!filter) return;
+    if (!filter.filterJson.trim()) {
+      setReportError('Вставьте JSON фильтра (CommonStatistic.GetReport) в настройках');
+      return;
+    }
 
     setReportLoading(true);
     setReportError(null);
-    
-    const standData: Record<string, any> = {};
-    
+
+    const standData: Record<string, ReportTableData> = {};
     try {
-      // Последовательно загружаем отчеты для каждого стенда
       for (const stand of FIXED_STANDS) {
         const standState = getStandState(stand.id);
-        if (!standState.cookies) {
-          console.warn(`Стенд ${stand.name} не синхронизирован, пропускаем`);
-          standData[stand.id] = { rows: [], error: 'Не синхронизирован' };
+        if (standState.syncStatus !== 'success') {
+          standData[stand.id] = { columns: [], rows: [], error: 'Не синхронизирован. Выполните SAP.Authenticate.' };
           continue;
         }
-        
-        const reportResult = await fetchReportForStand(filter, stand.id, stand.baseUrl);
-        standData[stand.id] = reportResult || { rows: [] };
-      }
-      
-      // Сохраняем отчет с данными по всем стендам
-      if (Object.keys(standData).length > 0) {
-        const accountId = getAccountId();
-        const payload = localStorage.getItem("kadr-regapi-token");
-        let createdBy = "Unknown";
-        if (payload) {
-          try {
-            const decoded = JSON.parse(atob(payload.split('.')[1]));
-            createdBy = decoded.name || decoded.email || accountId;
-          } catch {}
+        try {
+          standData[stand.id] = await fetchStandReport(stand.id, stand.baseUrl, filter);
+        } catch (e) {
+          const err = e as Error & { needAuth?: boolean };
+          if (err.needAuth) {
+            updateStandState(stand.id, { syncStatus: 'idle', cookies: undefined, errorMessage: err.message });
+          }
+          standData[stand.id] = { columns: [], rows: [], error: err.message };
         }
-        
-        const savedReport: SavedReport = {
-          id: Date.now().toString(),
-          filterId: filter.id,
-          filterName: filter.name,
-          createdAt: Date.now(),
-          createdBy,
-          filterJson: JSON.stringify(actualizeFilter(filter)),
-          standData
-        };
-        
-        saveReport(savedReport);
-        setSelectedReport(savedReport);
-        setCurrentStandView(FIXED_STANDS[0].id);
       }
+
+      const savedReport: SavedReport = {
+        id: Date.now().toString(),
+        filterId: filter.id,
+        filterName: filter.name,
+        createdAt: Date.now(),
+        createdBy: user?.name || user?.email || getAccountId(),
+        filterJson: filter.filterJson,
+        standData,
+      };
+      saveReport(savedReport);
+      setSelectedReport(savedReport);
+      setCurrentStandView(FIXED_STANDS[0].id);
     } catch (error) {
       console.error('Error loading reports:', error);
       setReportError('Ошибка при загрузке отчетов: ' + (error as Error).message);
@@ -474,122 +337,6 @@ export default function CloudStatisticPage() {
     }
   };
 
-  // Функция получения отчета для конкретного стенда
-  const fetchReportForStand = async (filter: ReportFilter, standId: string, standUrl: string): Promise<any> => {
-    const standState = getStandState(standId);
-    if (!standState.cookies) {
-      return { rows: [], error: 'Не синхронизирован' };
-    }
-
-    try {
-      let reportData: any = null;
-      const filterObj = actualizeFilter(filter);
-      if (!filterObj) {
-        return { rows: [], error: 'Ошибка формирования фильтра' };
-      }
-
-      if (!window.requirejs) {
-        console.warn('requirejs not available, using mock report');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        // Mock-данные без префикса стенда
-        reportData = {
-          rows: [
-            { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 },
-            { name0: 'CoreV3.Collecting', 'Количество вызовов': 3155, 'Количество ошибок': 18, 'Количество предупреждений': 6, 'Максимальная продолжительность (мс)': 15603, 'Общая продолжительность (мс)': 3989694, 'Средняя продолжительность (мс)': 1264.56 },
-          ]
-        };
-      } else {
-        reportData = await new Promise((resolve, reject) => {
-          window.requirejs(['Types/source', 'Types/entity'], function(source: any, entity: any) {
-            try {
-              const filterRecord = new entity.Record({
-                format: { "filter": "record", "Фильтр": "record" },
-                adapter: 'adapter.sbis'
-              });
-              
-              filterRecord.set(filterObj);
-              
-              const Query = source.Query;
-              const myQuery = new Query();
-              myQuery.where(filterRecord).limit(1000);
-              
-              new source.SbisService({
-                endpoint: {
-                  contract: 'CommonStatistic',
-                  address: `${standUrl}/stats-cloud-interface/service/?x_version=26.4211-8`
-                },
-                binding: { query: 'GetReport' }
-              }).query(myQuery).addBoth(function(result: any) {
-                console.info('Report result for stand:', standId, result);
-                
-                let parsedData: any = { rows: [] };
-                
-                if (result) {
-                  // Получаем сырые данные
-                  const rawData = result.getRawData ? result.getRawData() : (result.getData ? result.getData() : result);
-                  
-                  if (rawData && rawData.rs && Array.isArray(rawData.rs)) {
-                    // Парсим все записи из rs без фильтрации по dimension
-                    parsedData.rows = rawData.rs.map((item: any) => ({
-                      name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
-                      id: item.id,
-                      dimension: item.dimension,
-                      label: item.label,
-                      // Сохраняем оригинальные поля с русскими названиями
-                      'Количество вызовов': item['Количество вызовов'] ?? 0,
-                      'Количество ошибок': item['Количество ошибок'] ?? 0,
-                      'Количество предупреждений': item['Количество предупреждений'] ?? 0,
-                      'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
-                      'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
-                      'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
-                    }));
-                  } else if (Array.isArray(rawData)) {
-                    // Если результат сразу массив
-                    parsedData.rows = rawData.map((item: any) => ({
-                      name0: item.name0 || (item.id ? item.id.split('$$')[0] : '') || 'Неизвестно',
-                      id: item.id,
-                      dimension: item.dimension,
-                      label: item.label,
-                      'Количество вызовов': item['Количество вызовов'] ?? 0,
-                      'Количество ошибок': item['Количество ошибок'] ?? 0,
-                      'Количество предупреждений': item['Количество предупреждений'] ?? 0,
-                      'Максимальная продолжительность (мс)': item['Максимальная продолжительность (мс)'] ?? 0,
-                      'Общая продолжительность (мс)': item['Общая продолжительность (мс)'] ?? 0,
-                      'Средняя продолжительность (мс)': item['Средняя продолжительность (мс)'] ?? 0
-                    }));
-                  } else if (rawData && rawData.rows) {
-                    parsedData = rawData;
-                  } else {
-                    // Fallback mock-данные без префикса
-                    parsedData.rows = [
-                      { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 },
-                      { name0: 'CoreV3.Collecting', 'Количество вызовов': 3155, 'Количество ошибок': 18, 'Количество предупреждений': 6, 'Максимальная продолжительность (мс)': 15603, 'Общая продолжительность (мс)': 3989694, 'Средняя продолжительность (мс)': 1264.56 }
-                    ];
-                  }
-                } else {
-                  parsedData.rows = [
-                    { name0: 'CRMClients.LastDTActionDocSave', 'Количество вызовов': 709399, 'Количество ошибок': 48, 'Количество предупреждений': 1602, 'Максимальная продолжительность (мс)': 2805, 'Общая продолжительность (мс)': 9221075, 'Средняя продолжительность (мс)': 13 }
-                  ];
-                }
-                
-                resolve(parsedData);
-              });
-            } catch(e) {
-              console.error('Filter error:', e);
-              reject(e);
-            }
-          });
-        });
-      }
-      
-      return reportData;
-    } catch (error) {
-      console.error('Failed to fetch report for stand:', standId, error);
-      return { rows: [], error: (error as Error).message };
-    }
-  };
-
-  // Обработчик синхронизации (аутентификации) для конкретного стенда
   const handleSyncStand = (standId: string, standUrl: string) => {
     const creds = getStandCredentials(standId);
     if (!creds.login.trim() || !creds.password.trim()) {
@@ -887,10 +634,10 @@ export default function CloudStatisticPage() {
                   </div>
 
                   {/* Cookie status */}
-                  {state.cookies && (
+                  {state.syncStatus === 'success' && (
                     <div className="mb-3 p-2 bg-deep/50 rounded border border-border">
-                      <p className="text-[10px] text-mist font-mono truncate">
-                        Cookie: {state.cookies.substring(0, 40)}...
+                      <p className="text-[10px] text-sage font-semibold">
+                        Cookie сессии сохранены в БД и будут использованы в GetReport
                       </p>
                     </div>
                   )}
@@ -950,7 +697,7 @@ export default function CloudStatisticPage() {
           <div className="mb-8">
             <h2 className="font-display text-[18px] font-semibold text-fog mb-4">Выбор отчета</h2>
             <div className="rounded-xl border border-line bg-panel/40 p-6 backdrop-blur">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <label className="text-[13px] font-bold text-mist uppercase tracking-wide">
                   Фильтр:
                 </label>
@@ -967,25 +714,41 @@ export default function CloudStatisticPage() {
                   ))}
                 </select>
                 {selectedFilterId && (
-                  <button
-                    onClick={async () => {
-                      await handleLoadAllReports();
-                    }}
-                    disabled={reportLoading}
-                    className="flex items-center gap-2 rounded-lg bg-sage px-4 py-3 text-[13px] font-bold text-[#17211d] transition-all hover:bg-sage/80 disabled:opacity-50"
-                  >
-                    {reportLoading ? (
-                      <>
-                        <RefreshCw size={18} className="animate-spin" />
-                        Загрузка...
-                      </>
-                    ) : (
-                      <>
-                        <Download size={18} />
-                        Загрузить отчеты по всем стендам
-                      </>
-                    )}
-                  </button>
+                  <div className="flex flex-wrap items-end gap-3">
+                    {(() => {
+                      const f = settings.reportFilters.find(x => x.id === selectedFilterId);
+                      if (!f) return null;
+                      return (
+                        <>
+                          <label className="text-[11px] text-mist">
+                            С
+                            <input type="date" value={f.dateStart || ''} onChange={(e) => handleUpdateFilterDateStart(f.id, e.target.value)}
+                              className="ml-1 px-2 py-1 bg-deep border border-line rounded text-fog" />
+                          </label>
+                          <input type="time" value={f.timeStart || '00:00'} onChange={(e) => handleUpdateFilterTimeStart(f.id, e.target.value)}
+                            className="px-2 py-1 bg-deep border border-line rounded text-fog" />
+                          <label className="text-[11px] text-mist">
+                            По
+                            <input type="date" value={f.dateEnd || ''} onChange={(e) => handleUpdateFilterDateEnd(f.id, e.target.value)}
+                              className="ml-1 px-2 py-1 bg-deep border border-line rounded text-fog" />
+                          </label>
+                          <input type="time" value={f.timeEnd || '23:59'} onChange={(e) => handleUpdateFilterTimeEnd(f.id, e.target.value)}
+                            className="px-2 py-1 bg-deep border border-line rounded text-fog" />
+                        </>
+                      );
+                    })()}
+                    <button
+                      onClick={() => { void handleLoadAllReports(); }}
+                      disabled={reportLoading}
+                      className="flex items-center gap-2 rounded-lg bg-sage px-4 py-3 text-[13px] font-bold text-[#17211d] transition-all hover:bg-sage/80 disabled:opacity-50"
+                    >
+                      {reportLoading ? (
+                        <><RefreshCw size={18} className="animate-spin" />Загрузка GetReport…</>
+                      ) : (
+                        <><Download size={18} />Загрузить таблицу отчёта</>
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
               
@@ -1135,55 +898,9 @@ export default function CloudStatisticPage() {
               </div>
               
               {/* Report Data Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-deep/50 border-b border-line">
-                    <tr>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide">Метод</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Количество вызовов</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Количество ошибок</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Количество предупреждений</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Max (мс)</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Sum (мс)</th>
-                      <th className="px-4 py-3 text-[12px] font-bold text-mist uppercase tracking-wide text-right">Ave (мс)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const currentStandData = selectedReport.standData[currentStandView];
-                      const rows = currentStandData?.rows || [];
-                      if (rows.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-mist">
-                              Нет данных для отображения{currentStandData?.error ? `: ${currentStandData.error}` : ''}
-                            </td>
-                          </tr>
-                        );
-                      }
-                      return rows.map((row: any, idx: number) => (
-                        <tr key={idx} className="border-b border-line hover:bg-panel/60">
-                          <td className="px-4 py-3 text-[13px] text-fog font-mono">
-                            <div className="font-semibold">{row.name0 || 'N/A'}</div>
-                          </td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right font-semibold">{row['Количество вызовов'] ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-right">
-                            <span className={`px-2 py-1 rounded text-[11px] font-semibold ${
-                              (row['Количество ошибок'] ?? 0) > 0 ? 'bg-ember/20 text-ember' : 'bg-sage/20 text-sage'
-                            }`}>
-                              {row['Количество ошибок'] ?? 0}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-[13px] text-mist text-right">{row['Количество предупреждений'] ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row['Максимальная продолжительность (мс)'] ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row['Общая продолжительность (мс)'] ?? 0}</td>
-                          <td className="px-4 py-3 text-[13px] text-fog text-right">{row['Средняя продолжительность (мс)'] ?? 0}</td>
-                        </tr>
-                      ));
-                    })()}
-                  </tbody>
-                </table>
-              </div>
+              <ReportTable
+                data={selectedReport.standData[currentStandView] || { columns: [], rows: [], error: 'Нет данных' }}
+              />
             </div>
           </div>
         )}
@@ -1273,21 +990,33 @@ export default function CloudStatisticPage() {
                                 />
                               </div>
                               <div className="flex-1">
-                                <label className="block text-[10px] font-bold text-mist uppercase mb-1">Фильтр (JSON)</label>
-                                <input
-                                  type="text"
+                                <label className="block text-[10px] font-bold text-mist uppercase mb-1">Фильтр JSON-RPC (GetReport)</label>
+                                <textarea
                                   value={filter.filterJson}
-                                  onChange={(e) => {
-                                    const newSettings = {
-                                      ...settings,
-                                      reportFilters: settings.reportFilters.map(f => f.id === filter.id ? { ...f, filterJson: e.target.value } : f),
-                                    };
-                                    saveSettings(newSettings);
-                                  }}
-                                  placeholder='{"filter": {...}, "Фильтр": {...}}'
-                                  className="w-full bg-deep border border-line rounded px-2 py-1.5 text-[12px] text-fog focus:outline-none focus:ring-1 focus:ring-amber font-mono"
+                                  onChange={(e) => handleUpdateFilterJson(filter.id, e.target.value)}
+                                  placeholder='Вставьте тело запроса CommonStatistic.GetReport ({"jsonrpc":"2.0","method":"CommonStatistic.GetReport","params":{...}})'
+                                  rows={6}
+                                  className="w-full bg-deep border border-line rounded px-2 py-1.5 text-[11px] text-fog focus:outline-none focus:ring-1 focus:ring-amber font-mono"
                                 />
                               </div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <label className="text-[10px] text-mist">Дата с
+                                <input type="date" value={filter.dateStart || ''} onChange={(e) => handleUpdateFilterDateStart(filter.id, e.target.value)}
+                                  className="mt-1 w-full bg-deep border border-line rounded px-2 py-1.5 text-[12px] text-fog" />
+                              </label>
+                              <label className="text-[10px] text-mist">Время с
+                                <input type="time" value={filter.timeStart || '00:00'} onChange={(e) => handleUpdateFilterTimeStart(filter.id, e.target.value)}
+                                  className="mt-1 w-full bg-deep border border-line rounded px-2 py-1.5 text-[12px] text-fog" />
+                              </label>
+                              <label className="text-[10px] text-mist">Дата по
+                                <input type="date" value={filter.dateEnd || ''} onChange={(e) => handleUpdateFilterDateEnd(filter.id, e.target.value)}
+                                  className="mt-1 w-full bg-deep border border-line rounded px-2 py-1.5 text-[12px] text-fog" />
+                              </label>
+                              <label className="text-[10px] text-mist">Время по
+                                <input type="time" value={filter.timeEnd || '23:59'} onChange={(e) => handleUpdateFilterTimeEnd(filter.id, e.target.value)}
+                                  className="mt-1 w-full bg-deep border border-line rounded px-2 py-1.5 text-[12px] text-fog" />
+                              </label>
                             </div>
                             <div className="flex items-center gap-2 pt-2 border-t border-line">
                               <button
