@@ -199,6 +199,54 @@ function kadr_cookies_from_auth_result(?array $json): array
 }
 
 /**
+ * Публичный hostname стенда для запросов с внешнего хостинга (reg.ru).
+ * `*-cloud.sbis.ru` резолвится только во внутренней DNS Tensor → PHP на reg.ru
+ * получает "Could not resolve host". Публичный вход — `*-online.sbis.ru`
+ * (тот же auth/service и stats-cloud-interface).
+ */
+function kadr_stand_request_url(string $standUrl): string
+{
+    $standUrl = rtrim(trim($standUrl), '/');
+    $count = 0;
+    $mapped = preg_replace(
+        '#^(https://)([a-z0-9-]+)-cloud(\.sbis\.ru)$#i',
+        '$1$2-online$3',
+        $standUrl,
+        1,
+        $count
+    );
+    return ($count > 0 && is_string($mapped)) ? $mapped : $standUrl;
+}
+
+/** Базы URL для RPC: сначала online (доступен снаружи), затем исходный. */
+function kadr_stand_request_bases(string $standUrl): array
+{
+    $orig = rtrim(trim($standUrl), '/');
+    $pub  = kadr_stand_request_url($orig);
+    $bases = [];
+    if ($pub !== '') {
+        $bases[] = $pub;
+    }
+    if ($orig !== '' && $orig !== $pub) {
+        $bases[] = $orig;
+    }
+    return $bases;
+}
+
+function kadr_sbis_dns_hint(string $error, string $url): string
+{
+    if ($error === '' || !preg_match('/could not resolve host|name or service not known|getaddrinfo/i', $error)) {
+        return $error;
+    }
+    $host = parse_url($url, PHP_URL_HOST) ?: '';
+    if ($host !== '' && preg_match('/-cloud\.sbis\.ru$/i', $host)) {
+        $online = preg_replace('/-cloud\.sbis\.ru$/i', '-online.sbis.ru', $host);
+        return $error . '. Хост ' . $host . ' недоступен с внешнего DNS; используйте https://' . $online . '/';
+    }
+    return $error . '. Стенд недоступен с сервера КАДР (нужен публичный *-online.sbis.ru или хост внутри сети Tensor).';
+}
+
+/**
  * @return array{json:?array, cookies:array, http:int, error:string, raw:string}
  */
 function kadr_sbis_rpc(string $url, array $payload, string $cookieHeader, string $calledMethod): array
@@ -277,11 +325,16 @@ function kadr_sbis_rpc(string $url, array $payload, string $cookieHeader, string
         @unlink($jar);
     }
 
+    $errMsg = $err ?: '';
+    if ($errMsg !== '') {
+        $errMsg = kadr_sbis_dns_hint($errMsg, $url);
+    }
+
     return [
         'json'    => $json,
         'cookies' => $cookies,
         'http'    => $http,
-        'error'   => $err ?: '',
+        'error'   => $errMsg,
         'raw'     => is_string($raw) ? $raw : '',
     ];
 }

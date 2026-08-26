@@ -153,20 +153,35 @@ $payloads = [
     ],
 ];
 
-$urls = [
-    $standUrl . '/auth/service/?srv=1',
-    $standUrl . '/auth/service/',
-];
+// Публичный вход: *-online.sbis.ru (с reg.ru *-cloud.sbis.ru не резолвится).
+// Целевой путь авторизации — /auth/service/
+$urls = [];
+foreach (kadr_stand_request_bases($standUrl) as $base) {
+    $urls[] = $base . '/auth/service/';
+    $urls[] = $base . '/auth/service/?srv=1';
+}
+$urls = array_values(array_unique($urls));
 
 $lastErr = '';
 $lastHttp = 0;
 $lastPreview = '';
 $cookies = [];
 $okRpc = null;
+$usedBase = kadr_stand_request_url($standUrl);
 
 foreach ($urls as $url) {
     foreach ($payloads as $payload) {
-        $rpc = kadr_sbis_rpc($url, $payload, '', 'SAP.Authenticate');
+        // full_url в data должен совпадать с хостом запроса
+        if (preg_match('#^(https://[^/]+)#i', $url, $um)) {
+            $payloadForUrl = $payload;
+            if (isset($payloadForUrl['params']['data']['d'][6])) {
+                $payloadForUrl['params']['data']['d'][6] = $um[1] . '/auth/?ret=%2F';
+            }
+        } else {
+            $payloadForUrl = $payload;
+        }
+
+        $rpc = kadr_sbis_rpc($url, $payloadForUrl, '', 'SAP.Authenticate');
         $lastHttp = $rpc['http'];
         $lastPreview = mb_substr($rpc['raw'], 0, 280);
 
@@ -190,6 +205,9 @@ foreach ($urls as $url) {
         if ($found) {
             $cookies = $found;
             $okRpc = $rpc;
+            if (preg_match('#^(https://[^/]+)#i', $url, $um)) {
+                $usedBase = $um[1];
+            }
             break 2;
         }
 
@@ -214,7 +232,8 @@ if (!$cookies) {
 }
 
 $header = kadr_cookie_header_from_map($cookies);
-kadr_save_stand_session($accountId, $standId, $standUrl, $header, $login, $password);
+// В БД храним URL, с которого реально ходили (online), чтобы GetReport попал туда же
+kadr_save_stand_session($accountId, $standId, $usedBase ?: $standUrl, $header, $login, $password);
 
 kadr_json([
     'ok'            => true,
