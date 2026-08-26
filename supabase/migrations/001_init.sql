@@ -22,6 +22,12 @@ create table if not exists public.account_state (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.user_settings (
+  account_id uuid primary key,
+  settings   jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 -- Эталонные скриншоты и снимки прогонов (по тесту)
 create table if not exists public.baselines (
   test_id    text primary key,
@@ -107,6 +113,7 @@ create trigger on_auth_user_created
 -- ------------------------------------------------------------
 alter table public.profiles      enable row level security;
 alter table public.account_state enable row level security;
+alter table public.user_settings enable row level security;
 alter table public.baselines     enable row level security;
 alter table public.run_shots     enable row level security;
 alter table public.team_tests    enable row level security;
@@ -117,6 +124,10 @@ create policy "profiles: своё рабочее место"
 
 create policy "account_state: своё рабочее место"
   on public.account_state for all
+  using (account_id = auth.uid()) with check (account_id = auth.uid());
+
+create policy "user_settings: своё рабочее место"
+  on public.user_settings for all
   using (account_id = auth.uid()) with check (account_id = auth.uid());
 
 create policy "baselines: своё рабочее место"
